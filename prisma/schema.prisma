@@ -14,15 +14,105 @@ datasource db {
 }
 
 model Articulo {
-  id                  Int      @id @default(autoincrement())
-  codigo              String   @unique
-  descripcion         String
-  demanda             Int
-  costoAlmacenamiento Float
-  costoPedido         Float
-  costoCompra         Float
-  estado              Boolean  @default(true)
-  fechaBaja           DateTime?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  codArticulo                       Int      @id @default(autoincrement())
+  nombreArt                         String
+  descripcion                       String
+  demanda                           Int
+  cantArticulo                      Int
+  cantMaxArticulo                   Int
+  costoAlmacenamiento               Float
+  costoMantenimiento                Float
+  costoPedido                       Float
+  costoCompra                       Float
+  desviacionDemandaLArticulo        Float
+  desviacionDemandaTArticulo        Float
+  nivelServicioDeseado              Float
+  fechaHoraBajaArticulo             DateTime?
+  createdAt                         DateTime @default(now())
+  updatedAt                         DateTime @updatedAt
+  articuloProveedores               ArticuloProveedor[]
+  modeloInventarioIntervaloFijoCod  Int?
+  modeloInventarioLoteFijoCod       Int?
+  modeloInventarioIntervaloFijo     ModeloInventarioIntervaloFijo? @relation(fields: [modeloInventarioIntervaloFijoCod], references: [modeloInventarioIntervaloFijoCod])
+  modeloInventarioLoteFijo          ModeloInventarioLoteFijo? @relation(fields: [modeloInventarioLoteFijoCod], references: [modeloInventarioLoteFijoCod]) 
+  detalleOrdenCompra                DetalleOrdenCompra[]
+  nroVenta                          Int?
+  ventas                            Ventas? @relation(fields: [nroVenta], references: [nroVenta])
+}
+
+model ArticuloProveedor{
+
+  cargoPedidoAP               Int
+  demoraEntregaAP             Int
+  precioUnitarioAP            Int
+  codProveedor                Int
+  codArticulo                 Int
+  proveedor                   Proveedor @relation(fields: [codProveedor], references: [codProveedor])
+  articulo                    Articulo  @relation(fields: [codArticulo], references: [codArticulo])
+  @@unique([codArticulo, codProveedor])
+}
+
+model ModeloInventarioIntervaloFijo {
+  modeloInventarioIntervaloFijoCod    Int @id @default(autoincrement()) 
+  intervaloTiempo                     Int
+  stockSeguridad                      Int
+  articulos                           Articulo[] // Relación inversa
+}
+
+model ModeloInventarioLoteFijo {
+  modeloInventarioLoteFijoCod   Int @id @default(autoincrement()) 
+  loteOptimo                    Int
+  puntoOptimo                   Int
+  stockSeguridadLF              Int
+  articulos                     Articulo[] // Relación inversa
+}
+
+model Ventas {
+  fechaVenta                    DateTime
+  montoTotalVenta               Int
+  nroVenta                      Int   @id @default(autoincrement()) 
+  detalleVenta                  DetalleVenta[]
+  articulo                      Articulo[]
+}
+
+model DetalleVenta {
+  montoDetalleVenta             Int
+  nroRenglonDV                  Int   @id @default(autoincrement())
+  nroVenta                      Int
+  ventas                        Ventas @relation(fields: [nroVenta], references: [nroVenta])
+}
+
+model Proveedor {
+  codProveedor                  Int     @id @default(autoincrement())
+  fechaHoraBajaProveedor        DateTime
+  nombreProveedor               String
+  articuloProveedores           ArticuloProveedor[]
+  ordenCompra                   OrdenCompra[]
+}
+
+model OrdenCompra {
+  nroOrdenCompra                Int @id @default(autoincrement())
+  montoOrdenCompra              Float
+  fechaHoraBajaOrdenCompra      DateTime
+  codProveedor                  Int
+  proveedor                     Proveedor @relation(fields: [codProveedor], references: [codProveedor])
+  codEstadoOrdenCompra          Int
+  estadoOrdenCompra             EstadoOrdenCompra @relation(fields: [codEstadoOrdenCompra], references: [codEstadoOrdenCompra])
+  detalleOrdenCompra            DetalleOrdenCompra[]
+}
+
+model EstadoOrdenCompra {
+ codEstadoOrdenCompra           Int   @id @default(autoincrement())
+ fechaHoraBajaEstadoOC          DateTime
+ nombreEstadoOC                 String
+ ordenCompra                    OrdenCompra[]
+}
+
+model DetalleOrdenCompra {
+  montoDOC                      Float
+  nroRenglonDOC                 Int @id @default(autoincrement())
+  nroOrdenCompra                Int 
+  ordenCompra                   OrdenCompra @relation(fields: [nroOrdenCompra], references: [nroOrdenCompra])
+  codArticulo                   Int
+  articulo                      Articulo @relation(fields: [codArticulo], references: [codArticulo])
 }
