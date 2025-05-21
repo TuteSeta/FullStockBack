@@ -17,17 +17,24 @@ router.get('/', async (req, res) => {
 
 // POST /api/articulos
 router.post('/', async (req, res) => {
-  const { codigo, descripcion, demanda, costoAlmacenamiento, costoPedido, costoCompra } = req.body;
+  const { codArticulo, nombreArt, descripcion, demanda, cantArticulo, cantMaxArticulo, costoAlmacenamiento, costoMantenimiento, costoPedido, costoCompra, desviacionDemandaLArticulo, desviacionDemandaTArticulo, nivelServicioDeseado } = req.body;
 
   try {
     const nuevo = await prisma.articulo.create({
       data: {
-        codigo,
+        codArticulo,
+        nombreArt,
         descripcion,
         demanda: parseInt(demanda),
+        cantArticulo: parseInt(cantArticulo),
+        cantMaxArticulo: parseInt(cantMaxArticulo),
         costoAlmacenamiento: parseFloat(costoAlmacenamiento),
+        costoMantenimiento: parseFloat(costoMantenimiento),
         costoPedido: parseFloat(costoPedido),
         costoCompra: parseFloat(costoCompra),
+        desviacionDemandaLArticulo: parseFloat(desviacionDemandaLArticulo),
+        desviacionDemandaTArticulo: parseFloat(desviacionDemandaTArticulo),
+        nivelServicioDeseado: parseFloat(nivelServicioDeseado),
       },
     });
 
