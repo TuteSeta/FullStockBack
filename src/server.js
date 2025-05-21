@@ -8,7 +8,9 @@ app.use(express.json());
 
 // Rutas
 const articulosRoute = require('./routes/articulos');
+const proveedoresRoute = require('./routes/proveedores');
 app.use('/api/articulos', articulosRoute);
+app.use('/api/proveedores', proveedoresRoute);
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
