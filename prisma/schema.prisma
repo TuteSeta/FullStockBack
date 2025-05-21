@@ -84,7 +84,7 @@ model DetalleVenta {
 
 model Proveedor {
   codProveedor                  Int     @id @default(autoincrement())
-  fechaHoraBajaProveedor        DateTime
+  fechaHoraBajaProveedor        DateTime?
   nombreProveedor               String
   articuloProveedores           ArticuloProveedor[]
   ordenCompra                   OrdenCompra[]
@@ -93,7 +93,7 @@ model Proveedor {
 model OrdenCompra {
   nroOrdenCompra                Int @id @default(autoincrement())
   montoOrdenCompra              Float
-  fechaHoraBajaOrdenCompra      DateTime
+  fechaHoraBajaOrdenCompra      DateTime?
   codProveedor                  Int
   proveedor                     Proveedor @relation(fields: [codProveedor], references: [codProveedor])
   codEstadoOrdenCompra          Int
@@ -103,7 +103,7 @@ model OrdenCompra {
 
 model EstadoOrdenCompra {
  codEstadoOrdenCompra           Int   @id @default(autoincrement())
- fechaHoraBajaEstadoOC          DateTime
+ fechaHoraBajaEstadoOC          DateTime? 
  nombreEstadoOC                 String
  ordenCompra                    OrdenCompra[]
 }
