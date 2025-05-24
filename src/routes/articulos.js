@@ -20,7 +20,6 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res, next) => {
   try {
     const data = articulosSchema.parse(req.body); // valida y convierte
-
     const nuevo = await prisma.articulo.create({ data });
     res.status(201).json(nuevo);
   } catch (error) {
