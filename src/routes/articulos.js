@@ -22,7 +22,7 @@ router.post('/', async (req, res) => {
   try {
     const nuevo = await prisma.articulo.create({
       data: {
-        codArticulo,
+        codArticulo:parseInt(codArticulo),
         nombreArt,
         descripcion,
         demanda: parseInt(demanda),
