@@ -1,42 +1,27 @@
-/*
-  Warnings:
+-- CreateTable
+CREATE TABLE "Articulo" (
+    "codArticulo" SERIAL NOT NULL,
+    "nombreArt" TEXT NOT NULL,
+    "descripcion" TEXT NOT NULL,
+    "demanda" INTEGER NOT NULL,
+    "cantArticulo" INTEGER NOT NULL,
+    "cantMaxArticulo" INTEGER NOT NULL,
+    "costoAlmacenamiento" DOUBLE PRECISION NOT NULL,
+    "costoMantenimiento" DOUBLE PRECISION NOT NULL,
+    "costoPedido" DOUBLE PRECISION NOT NULL,
+    "costoCompra" DOUBLE PRECISION NOT NULL,
+    "desviacionDemandaLArticulo" DOUBLE PRECISION NOT NULL,
+    "desviacionDemandaTArticulo" DOUBLE PRECISION NOT NULL,
+    "nivelServicioDeseado" DOUBLE PRECISION NOT NULL,
+    "fechaHoraBajaArticulo" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "modeloInventarioIntervaloFijoCod" INTEGER,
+    "modeloInventarioLoteFijoCod" INTEGER,
+    "nroVenta" INTEGER,
 
-  - The primary key for the `Articulo` table will be changed. If it partially fails, the table could be left without primary key constraint.
-  - You are about to drop the column `codigo` on the `Articulo` table. All the data in the column will be lost.
-  - You are about to drop the column `estado` on the `Articulo` table. All the data in the column will be lost.
-  - You are about to drop the column `fechaBaja` on the `Articulo` table. All the data in the column will be lost.
-  - You are about to drop the column `id` on the `Articulo` table. All the data in the column will be lost.
-  - Added the required column `cantArticulo` to the `Articulo` table without a default value. This is not possible if the table is not empty.
-  - Added the required column `cantMaxArticulo` to the `Articulo` table without a default value. This is not possible if the table is not empty.
-  - Added the required column `costoMantenimiento` to the `Articulo` table without a default value. This is not possible if the table is not empty.
-  - Added the required column `desviacionDemandaLArticulo` to the `Articulo` table without a default value. This is not possible if the table is not empty.
-  - Added the required column `desviacionDemandaTArticulo` to the `Articulo` table without a default value. This is not possible if the table is not empty.
-  - Added the required column `nivelServicioDeseado` to the `Articulo` table without a default value. This is not possible if the table is not empty.
-  - Added the required column `nombreArt` to the `Articulo` table without a default value. This is not possible if the table is not empty.
-
-*/
--- DropIndex
-DROP INDEX "Articulo_codigo_key";
-
--- AlterTable
-ALTER TABLE "Articulo" DROP CONSTRAINT "Articulo_pkey",
-DROP COLUMN "codigo",
-DROP COLUMN "estado",
-DROP COLUMN "fechaBaja",
-DROP COLUMN "id",
-ADD COLUMN     "cantArticulo" INTEGER NOT NULL,
-ADD COLUMN     "cantMaxArticulo" INTEGER NOT NULL,
-ADD COLUMN     "codArticulo" SERIAL NOT NULL,
-ADD COLUMN     "costoMantenimiento" DOUBLE PRECISION NOT NULL,
-ADD COLUMN     "desviacionDemandaLArticulo" DOUBLE PRECISION NOT NULL,
-ADD COLUMN     "desviacionDemandaTArticulo" DOUBLE PRECISION NOT NULL,
-ADD COLUMN     "fechaHoraBajaArticulo" TIMESTAMP(3),
-ADD COLUMN     "modeloInventarioIntervaloFijoCod" INTEGER,
-ADD COLUMN     "modeloInventarioLoteFijoCod" INTEGER,
-ADD COLUMN     "nivelServicioDeseado" DOUBLE PRECISION NOT NULL,
-ADD COLUMN     "nombreArt" TEXT NOT NULL,
-ADD COLUMN     "nroVenta" INTEGER,
-ADD CONSTRAINT "Articulo_pkey" PRIMARY KEY ("codArticulo");
+    CONSTRAINT "Articulo_pkey" PRIMARY KEY ("codArticulo")
+);
 
 -- CreateTable
 CREATE TABLE "ArticuloProveedor" (
