@@ -1,11 +1,12 @@
 const express = require('express');
 const router = express.Router();
-const { PrismaClient } = require('@prisma/client');
+const prisma = require('../prismaClient');
+const { proveedorSchema } = require('../schemas/proveedorSchema');
 
-const prisma = new PrismaClient();
 
 // GET /api/proveedores
 router.get('/', async (req, res) => {
+
   try {
     const proveedores = await prisma.proveedor.findMany({
       where: { fechaHoraBajaProveedor: null }, // Solo los activos
@@ -17,19 +18,19 @@ router.get('/', async (req, res) => {
   }
 });
 
-// POST /api/proveedores
-router.post('/', async (req, res) => {
-  const { nombreProveedor } = req.body;
+// POST /api/articulos
+router.post('/', async (req, res, next) => {
   try {
-    const nuevoProveedor = await prisma.proveedor.create({
-      data: {
-        nombreProveedor,
-      },
-    });
-    res.status(201).json(nuevoProveedor);
+    const data = proveedorSchema.parse(req.body); // valida y convierte
+
+    const nuevo = await prisma.proveedor.create({ data });
+    res.status(201).json(nuevo);
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: 'Error al crear el proveedor' });
+    // Si tenés un middleware de errores:
+    next(error);
+    // Si no lo tenés aún, podés dejar esto temporalmente:
+    // res.status(400).json({ error: error.message });
   }
 });
 
