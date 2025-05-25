@@ -11,9 +11,10 @@ app.use(express.json());
 // Rutas
 const articulosRoute = require('./routes/articulos');
 const proveedoresRoute = require('./routes/proveedores');
+const proveedorArticulosRoute = require('./routes/proveedor-articulos');
 app.use('/api/articulos', articulosRoute);
 app.use('/api/proveedores', proveedoresRoute);
-
+app.use('/api/proveedor-articulos', proveedorArticulosRoute);
 
 // Middleware para manejar errores
 const { errorHandler } = require('./middlewares/errorHandler');

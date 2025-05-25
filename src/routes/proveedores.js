@@ -3,6 +3,26 @@ const router = express.Router();
 const prisma = require('../prismaClient');
 const { proveedorSchema } = require('../schemas/proveedorSchema');
 
+// PUT /api/proveedores/:codProveedor
+router.put('/:codProveedor', async (req, res) => {
+  const codProveedor = parseInt(req.params.codProveedor);
+  const { nombreProveedor } = req.body;
+
+  try {
+    const proveedorActualizado = await prisma.proveedor.update({
+      where: { codProveedor },
+      data: {
+        nombreProveedor,
+        // si querés actualizar más campos, agregalos acá
+      },
+    });
+
+    res.status(200).json(proveedorActualizado);
+  } catch (error) {
+    console.error('Error al actualizar proveedor:', error);
+    res.status(500).json({ error: 'No se pudo actualizar el proveedor' });
+  }
+});
 
 // GET /api/proveedores
 router.get('/', async (req, res) => {
