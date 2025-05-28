@@ -54,4 +54,23 @@ router.post('/', async (req, res, next) => {
   }
 });
 
+// DELETE /api/proveedores/:codProveedor
+router.delete('/:codProveedor', async (req, res) => {
+  const codProveedor = parseInt(req.params.codProveedor);
+
+  try {
+    // Actualizar la fecha de baja en lugar de eliminar
+    const proveedorBaja = await prisma.proveedor.update({
+      where: { codProveedor },
+      data: { fechaHoraBajaProveedor: new Date() },
+    });
+
+    res.status(200).json(proveedorBaja);
+  } catch (error) {
+    console.error('Error al dar de baja el proveedor:', error);
+    res.status(500).json({ error: 'No se pudo dar de baja el proveedor' });
+  }
+});
+
+
 module.exports = router;

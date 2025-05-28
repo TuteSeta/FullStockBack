@@ -2,17 +2,47 @@ const express = require('express');
 const router = express.Router();
 const prisma = require('../prismaClient');
 const { articulosSchema } = require('../schemas/articulosSchema');
+const { ar, de } = require('zod/v4/locales');
+const e = require('express');
 
 
 // PUT /api/articulos/:id
 router.put('/:id', async (req, res) => {
   const { id } = req.params;
-  const data = req.body;
+  const data = articulosSchema.parse(req.body); // valida y convierte
+
+  // Extrar posibles modelos de inventario
+  const {modeloInventarioLoteFijo, modeloInventarioIntervaloFijo, ...articuloData} = data;
+
+  const updateData = {...articuloData};
+
+  if (modeloInventarioLoteFijo) {
+    updateData.modeloInventarioLoteFijo = {
+  upsert: {
+    update: modeloInventarioLoteFijo,
+    create: modeloInventarioLoteFijo
+    }
+  };
+  updateData.modeloInventarioIntervaloFijo = { delete: true };
+
+  } else if (modeloInventarioIntervaloFijo) {
+    updateData.modeloInventarioIntervaloFijo = {
+      upsert: {
+        update: modeloInventarioIntervaloFijo,
+        create: modeloInventarioIntervaloFijo
+      }
+    };
+    updateData.modeloInventarioLoteFijo = { delete: true };
+  }
 
   try {
     const actualizado = await prisma.articulo.update({
       where: { codArticulo: parseInt(id) },
-      data,
+      data: updateData,
+      include: {
+        modeloInventarioLoteFijo: true,
+        modeloInventarioIntervaloFijo: true
+      }
     });
 
     res.status(200).json(actualizado);
@@ -44,7 +74,12 @@ router.delete('/:id', async (req, res) => {
 // GET /api/articulos
 router.get('/', async (req, res) => {
   try {
-    const articulos = await prisma.articulo.findMany();
+    const articulos = await prisma.articulo.findMany({
+      include: {
+        modeloInventarioLoteFijo: true,
+        modeloInventarioIntervaloFijo: true
+      }
+  });
     res.status(200).json(articulos);
   } catch (error) {
     console.error(error);
@@ -57,7 +92,26 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res, next) => {
   try {
     const data = articulosSchema.parse(req.body); // valida y convierte
-    const nuevo = await prisma.articulo.create({ data });
+
+    // Extrar posibles modelos de inventario
+    const {modeloInventarioLoteFijo, modeloInventarioIntervaloFijo, ...articuloData} = data;
+    
+    const createData = {...articuloData};
+    if (modeloInventarioLoteFijo) {
+      createData.modeloInventarioLoteFijo = {create: modeloInventarioLoteFijo};
+    } else if (modeloInventarioIntervaloFijo) {
+      createData.modeloInventarioIntervaloFijo = {create: modeloInventarioIntervaloFijo};
+    }
+
+
+    const nuevo = await prisma.articulo.create({ 
+      data: createData,
+      include: {
+        modeloInventarioLoteFijo: true,
+        modeloInventarioIntervaloFijo: true
+      }
+    });
+
     res.status(201).json(nuevo);
   } catch (error) {
     console.error(error);

@@ -1,7 +1,9 @@
 const { z } = require('zod');
+const { modeloInventarioLoteFijoSchema } = require('./modeloInventarioLoteFijoSchema');
+const { modeloInventarioIntervaloFijoSchema } = require('./modeloInventarioIntervaloFijoSchema');
 
 const articulosSchema = z.object({
-  codArticulo: z.coerce.number().int().nonnegative(),
+  codArticulo: z.coerce.number().int().nonnegative().optional(),
   nombreArt: z.string().min(1),
   descripcion: z.string().min(1),
   demanda: z.coerce.number().int().nonnegative(),
@@ -14,6 +16,8 @@ const articulosSchema = z.object({
   desviacionDemandaLArticulo: z.coerce.number().nonnegative(),
   desviacionDemandaTArticulo: z.coerce.number().nonnegative(),
   nivelServicioDeseado: z.coerce.number().nonnegative(),
+  modeloInventarioLoteFijo: modeloInventarioLoteFijoSchema.optional(),
+  modeloInventarioIntervaloFijo: modeloInventarioIntervaloFijoSchema.optional(),
 });
 
 module.exports = { articulosSchema };
