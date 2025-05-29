@@ -6,7 +6,7 @@ const prisma = new PrismaClient();
 
 // POST /api/ventas - Registrar una venta
 router.post('/', async (req, res) => {
-  const { codArticulo, montoTotalVenta } = req.body;
+  const { codArticulo, cantidadVendida } = req.body;
 
   try {
     const articulo = await prisma.articulo.findUnique({
@@ -21,18 +21,19 @@ router.post('/', async (req, res) => {
       return res.status(404).json({ error: 'Artículo no encontrado' });
     }
 
-    if (articulo.cantArticulo <= 1) {
-      return res.status(400).json({ error: 'No se puede vender: stock menor o igual a 1' });
+    if (articulo.cantArticulo < 1 || cantidadVendida > articulo.cantArticulo) {
+      return res.status(400).json({ error: 'Stock insuficiente para realizar la venta' });
     }
 
-    // Crear venta
+    const montoTotalVenta = articulo.costoCompra * cantidadVendida;
+
+    // Crear venta con relación correcta al artículo
     const venta = await prisma.ventas.create({
       data: {
         fechaVenta: new Date(),
-        montoTotalVenta: parseFloat(montoTotalVenta),
-        articulo: {
-          connect: { codArticulo },
-        },
+        montoTotalVenta,
+        cantidad: cantidadVendida,
+        codArticulo: codArticulo, // ✅ clave foránea directa
       },
     });
 
@@ -40,47 +41,42 @@ router.post('/', async (req, res) => {
     await prisma.articulo.update({
       where: { codArticulo },
       data: {
-        cantArticulo: articulo.cantArticulo - 1,
+        cantArticulo: articulo.cantArticulo - cantidadVendida,
       },
     });
 
-    // Verificar si aplica generación de orden de compra (modelo LF)
+    // Lógica de orden de compra automática (modelo lote fijo)
     const modeloLF = articulo.modeloInventarioLoteFijo;
-    if (modeloLF && (articulo.cantArticulo - 1 <= modeloLF.puntoPedido)) {
+    if (modeloLF && (articulo.cantArticulo - cantidadVendida <= modeloLF.puntoPedido)) {
       const proveedor = articulo.articuloProveedores[0];
-
-      if (!proveedor) {
-        return res.status(400).json({ error: 'No hay proveedor asignado al artículo' });
-      }
-
-      // Verificar si ya hay orden pendiente o enviada
-      const ordenesPendientes = await prisma.ordenCompra.findMany({
-        where: {
-          codProveedor: proveedor.codProveedor,
-          detalleOrdenCompra: {
-            some: { codArticulo: codArticulo },
-          },
-          estadoOrdenCompra: {
-            NOT: { nombreEstadoOC: 'Recibido' },
-          },
-        },
-        include: { estadoOrdenCompra: true },
-      });
-
-      if (ordenesPendientes.length === 0) {
-        await prisma.ordenCompra.create({
-          data: {
-            montoOrdenCompra: articulo.costoCompra,
+      if (proveedor) {
+        const ordenesPendientes = await prisma.ordenCompra.findMany({
+          where: {
             codProveedor: proveedor.codProveedor,
-            codEstadoOrdenCompra: 1, // Estado 'Pendiente' asumido como 1
             detalleOrdenCompra: {
-              create: {
-                montoDOC: articulo.costoCompra,
-                codArticulo,
-              },
+              some: { codArticulo: codArticulo },
+            },
+            estadoOrdenCompra: {
+              NOT: { nombreEstadoOC: 'Recibido' },
             },
           },
         });
+
+        if (ordenesPendientes.length === 0) {
+          await prisma.ordenCompra.create({
+            data: {
+              montoOrdenCompra: articulo.costoCompra,
+              codProveedor: proveedor.codProveedor,
+              codEstadoOrdenCompra: 1, // Pendiente
+              detalleOrdenCompra: {
+                create: {
+                  montoDOC: articulo.costoCompra,
+                  codArticulo,
+                },
+              },
+            },
+          });
+        }
       }
     }
 
@@ -92,13 +88,18 @@ router.post('/', async (req, res) => {
   }
 });
 
-// GET /api/ventas - Ver todas las ventas realizadas
+// GET /api/ventas - Listar ventas
 router.get('/', async (req, res) => {
   try {
     const ventas = await prisma.ventas.findMany({
+      orderBy: { nroVenta: 'desc' },
       include: {
-        articulo: true,
-        detalleVenta: true,
+        articulo: {
+          select: {
+            codArticulo: true,
+            nombreArt: true,
+          },
+        },
       },
     });
 
