@@ -94,6 +94,7 @@ model OrdenCompra {
   nroOrdenCompra                Int @id @default(autoincrement())
   montoOrdenCompra              Float
   fechaHoraBajaOrdenCompra      DateTime?
+  fechaCreacion                 DateTime @default(now())
   codProveedor                  Int
   proveedor                     Proveedor @relation(fields: [codProveedor], references: [codProveedor])
   codEstadoOrdenCompra          Int
@@ -111,6 +112,7 @@ model EstadoOrdenCompra {
 model DetalleOrdenCompra {
   montoDOC                      Float
   nroRenglonDOC                 Int @id @default(autoincrement())
+  cantidadDOC                   Int
   nroOrdenCompra                Int 
   ordenCompra                   OrdenCompra @relation(fields: [nroOrdenCompra], references: [nroOrdenCompra])
   codArticulo                   Int
