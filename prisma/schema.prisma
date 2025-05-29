@@ -55,7 +55,7 @@ model ArticuloProveedor{
 model ModeloInventarioIntervaloFijo {
   modeloInventarioIntervaloFijoCod    Int @id @default(autoincrement()) 
   intervaloTiempo                     Int
-  stockSeguridad                      Int
+  stockSeguridadIF                    Int
   articulos                           Articulo[] // Relación inversa
 }
 
