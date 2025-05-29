@@ -12,9 +12,11 @@ app.use(express.json());
 const articulosRoute = require('./routes/articulos');
 const proveedoresRoute = require('./routes/proveedores');
 const proveedorArticulosRoute = require('./routes/proveedor-articulos');
+const ventasRoutes = require('./routes/ventas');
 app.use('/api/articulos', articulosRoute);
 app.use('/api/proveedores', proveedoresRoute);
 app.use('/api/proveedor-articulos', proveedorArticulosRoute);
+app.use('/api/ventas', ventasRoutes);
 
 // Middleware para manejar errores
 const { errorHandler } = require('./middlewares/errorHandler');
