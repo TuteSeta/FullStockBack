@@ -62,7 +62,7 @@ model ModeloInventarioIntervaloFijo {
 model ModeloInventarioLoteFijo {
   modeloInventarioLoteFijoCod   Int @id @default(autoincrement()) 
   loteOptimo                    Int
-  puntoOptimo                   Int
+  puntoPedido                   Int
   stockSeguridadLF              Int
   articulos                     Articulo[] // Relación inversa
 }
