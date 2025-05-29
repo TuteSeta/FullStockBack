@@ -46,7 +46,7 @@ router.post('/', async (req, res) => {
 
     // Verificar si aplica generación de orden de compra (modelo LF)
     const modeloLF = articulo.modeloInventarioLoteFijo;
-    if (modeloLF && (articulo.cantArticulo - 1 <= modeloLF.puntoOptimo)) {
+    if (modeloLF && (articulo.cantArticulo - 1 <= modeloLF.puntoPedido)) {
       const proveedor = articulo.articuloProveedores[0];
 
       if (!proveedor) {

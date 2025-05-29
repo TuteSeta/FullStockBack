@@ -33,6 +33,9 @@ router.put('/:id', async (req, res) => {
       }
     };
     updateData.modeloInventarioLoteFijo = { delete: true };
+  } else {
+    updateData.modeloInventarioLoteFijo = { delete: true };
+    updateData.modeloInventarioIntervaloFijo = { delete: true };
   }
 
   try {
@@ -55,7 +58,7 @@ router.put('/:id', async (req, res) => {
 
 // DELETE /api/articulos/:id
 router.delete('/:id', async (req, res) => {
-  const { id } = req.params;
+  const { id } = req.params; 
 
   try {
     await prisma.articulo.delete({
