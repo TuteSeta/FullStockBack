@@ -33,8 +33,8 @@ model Articulo {
   articuloProveedores               ArticuloProveedor[]
   modeloInventarioIntervaloFijoCod  Int?
   modeloInventarioLoteFijoCod       Int?
-  modeloInventarioIntervaloFijo     ModeloInventarioIntervaloFijo? @relation("InventarioIntervaloFijoRel", fields: [modeloInventarioIntervaloFijoCod], references: [modeloInventarioIntervaloFijoCod], onDelete: Cascade)
-  modeloInventarioLoteFijo          ModeloInventarioLoteFijo? @relation("InventarioLoteFijoRel", fields: [modeloInventarioLoteFijoCod], references: [modeloInventarioLoteFijoCod], onDelete: Cascade) 
+  modeloInventarioIntervaloFijo     ModeloInventarioIntervaloFijo? @relation(fields: [modeloInventarioIntervaloFijoCod], references: [modeloInventarioIntervaloFijoCod])
+  modeloInventarioLoteFijo          ModeloInventarioLoteFijo? @relation(fields: [modeloInventarioLoteFijoCod], references: [modeloInventarioLoteFijoCod]) 
   detalleOrdenCompra                DetalleOrdenCompra[]
   nroVenta                          Int?
   ventas                            Ventas? @relation(fields: [nroVenta], references: [nroVenta])
@@ -55,8 +55,8 @@ model ArticuloProveedor{
 model ModeloInventarioIntervaloFijo {
   modeloInventarioIntervaloFijoCod    Int @id @default(autoincrement()) 
   intervaloTiempo                     Int
-  stockSeguridadIF                      Int
-  articulos                           Articulo[] @relation("InventarioIntervaloFijoRel") // Relación inversa
+  stockSeguridadIF                    Int
+  articulos                           Articulo[] // Relación inversa
 }
 
 model ModeloInventarioLoteFijo {
@@ -64,7 +64,7 @@ model ModeloInventarioLoteFijo {
   loteOptimo                    Int
   puntoPedido                   Int
   stockSeguridadLF              Int
-  articulos                     Articulo[] @relation("InventarioLoteFijoRel") // Relación inversa
+  articulos                     Articulo[] // Relación inversa
 }
 
 model Ventas {
