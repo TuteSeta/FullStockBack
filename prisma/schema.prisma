@@ -36,8 +36,7 @@ model Articulo {
   modeloInventarioIntervaloFijo     ModeloInventarioIntervaloFijo? @relation(fields: [modeloInventarioIntervaloFijoCod], references: [modeloInventarioIntervaloFijoCod])
   modeloInventarioLoteFijo          ModeloInventarioLoteFijo? @relation(fields: [modeloInventarioLoteFijoCod], references: [modeloInventarioLoteFijoCod]) 
   detalleOrdenCompra                DetalleOrdenCompra[]
-  nroVenta                          Int?
-  ventas                            Ventas? @relation(fields: [nroVenta], references: [nroVenta])
+  detalleVenta                      DetalleVenta[]  
 }
 
 model ArticuloProveedor{
@@ -70,16 +69,20 @@ model ModeloInventarioLoteFijo {
 model Ventas {
   fechaVenta                    DateTime
   montoTotalVenta               Int
+  cantidad                      Int
   nroVenta                      Int   @id @default(autoincrement()) 
   detalleVenta                  DetalleVenta[]
-  articulo                      Articulo[]
 }
 
 model DetalleVenta {
-  montoDetalleVenta             Int
+  montoDetalleVenta             Float
   nroRenglonDV                  Int   @id @default(autoincrement())
+  precioUnitario                Float
+  cantidad                      Int
+  codArticulo                   Int
   nroVenta                      Int
   ventas                        Ventas @relation(fields: [nroVenta], references: [nroVenta])
+  articulo                      Articulo   @relation(fields: [codArticulo], references: [codArticulo])
 }
 
 model Proveedor {

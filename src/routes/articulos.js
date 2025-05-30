@@ -16,6 +16,9 @@ router.put('/:id', async (req, res) => {
 
   const updateData = {...articuloData};
 
+  // Eliminar codArticulo para que no se intente actualizar
+  delete updateData.codArticulo;
+
   if (modeloInventarioLoteFijo) {
     updateData.modeloInventarioLoteFijo = {
   upsert: {
@@ -23,7 +26,7 @@ router.put('/:id', async (req, res) => {
     create: modeloInventarioLoteFijo
     }
   };
-  updateData.modeloInventarioIntervaloFijo = { delete: true };
+  updateData.modeloInventarioIntervaloFijo = { disconnect: true };
 
   } else if (modeloInventarioIntervaloFijo) {
     updateData.modeloInventarioIntervaloFijo = {
@@ -32,10 +35,10 @@ router.put('/:id', async (req, res) => {
         create: modeloInventarioIntervaloFijo
       }
     };
-    updateData.modeloInventarioLoteFijo = { delete: true };
+    updateData.modeloInventarioLoteFijo = { disconnect: true };
   } else {
-    updateData.modeloInventarioLoteFijo = { delete: true };
-    updateData.modeloInventarioIntervaloFijo = { delete: true };
+    updateData.modeloInventarioLoteFijo = { disconnect: true };
+    updateData.modeloInventarioIntervaloFijo = { disconnect: true };
   }
 
   try {

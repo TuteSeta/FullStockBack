@@ -26,18 +26,39 @@ router.post('/', async (req, res) => {
     }
 
     const montoTotalVenta = articulo.costoCompra * cantidadVendida;
-
-    // Crear venta con relación correcta al artículo
+    const precioUnitario = articulo.costoCompra;
+    const montoDetalleVenta = precioUnitario * cantidadVendida;
+    // 1. Crear la venta
     const venta = await prisma.ventas.create({
       data: {
         fechaVenta: new Date(),
         montoTotalVenta,
         cantidad: cantidadVendida,
-        codArticulo: codArticulo, // ✅ clave foránea directa
+        detalleVenta: {
+          create: {
+            codArticulo,
+            cantidad: cantidadVendida,
+            precioUnitario,
+            montoDetalleVenta,
+          },
+        },
+      },
+      include: {
+        detalleVenta: {
+          include: {
+            articulo: {
+              select: {
+                codArticulo: true,
+                nombreArt: true,
+              },
+            },
+          },
+        }
+      
       },
     });
 
-    // Actualizar stock
+    // 2. Actualizar el stock
     await prisma.articulo.update({
       where: { codArticulo },
       data: {
@@ -45,7 +66,7 @@ router.post('/', async (req, res) => {
       },
     });
 
-    // Lógica de orden de compra automática (modelo lote fijo)
+    // 3. Verificar modelo Lote Fijo y crear orden si hace falta
     const modeloLF = articulo.modeloInventarioLoteFijo;
     if (modeloLF && (articulo.cantArticulo - cantidadVendida <= modeloLF.puntoPedido)) {
       const proveedor = articulo.articuloProveedores[0];
@@ -54,7 +75,7 @@ router.post('/', async (req, res) => {
           where: {
             codProveedor: proveedor.codProveedor,
             detalleOrdenCompra: {
-              some: { codArticulo: codArticulo },
+              some: { codArticulo },
             },
             estadoOrdenCompra: {
               NOT: { nombreEstadoOC: 'Recibido' },
@@ -67,7 +88,7 @@ router.post('/', async (req, res) => {
             data: {
               montoOrdenCompra: articulo.costoCompra,
               codProveedor: proveedor.codProveedor,
-              codEstadoOrdenCompra: 1, // Pendiente
+              codEstadoOrdenCompra: 1, // Estado "Pendiente"
               detalleOrdenCompra: {
                 create: {
                   montoDOC: articulo.costoCompra,
@@ -88,16 +109,20 @@ router.post('/', async (req, res) => {
   }
 });
 
-// GET /api/ventas - Listar ventas
+// GET /api/ventas - Listar ventas con artículos (usando DetalleVenta) 
 router.get('/', async (req, res) => {
   try {
     const ventas = await prisma.ventas.findMany({
       orderBy: { nroVenta: 'desc' },
       include: {
-        articulo: {
-          select: {
-            codArticulo: true,
-            nombreArt: true,
+        detalleVenta: {
+          include: {
+            articulo: {
+              select: {
+                codArticulo: true,
+                nombreArt: true,
+              },
+            },
           },
         },
       },
