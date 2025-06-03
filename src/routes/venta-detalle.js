@@ -1,13 +1,19 @@
 const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
+const { ventaDetalleUpdateSchema } = require('../schemas/ventaDetalleUpdateSchema');
 
 const prisma = new PrismaClient();
 
 // PUT /api/venta-detalle/:nroRenglonDV
 router.put('/:nroRenglonDV', async (req, res) => {
   const { nroRenglonDV } = req.params;
-  const { nuevaCantidad } = req.body;
+
+  const parseResult = ventaDetalleUpdateSchema.safeParse(req.body);
+  if (!parseResult.success) {
+    return res.status(400).json({ error: parseResult.error.errors });
+  }
+  const { nuevaCantidad } = parseResult.data;
 
   try {
     const detalle = await prisma.detalleVenta.findUnique({
@@ -23,6 +29,12 @@ router.put('/:nroRenglonDV', async (req, res) => {
     }
 
     const diferencia = nuevaCantidad - detalle.cantidad;
+
+    // Validación de stock disponible
+    if (diferencia > 0 && detalle.articulo.cantArticulo < diferencia) {
+       return res.status(400).json({ error: 'No hay suficiente stock disponible para aumentar la cantidad' });
+      }
+
     const nuevoStock = detalle.articulo.cantArticulo - diferencia;
     const nuevoMonto = detalle.precioUnitario * nuevaCantidad;
 

@@ -14,12 +14,16 @@ const proveedoresRoute = require('./routes/proveedores');
 const proveedorArticulosRoute = require('./routes/proveedor-articulos');
 const ventasRoutes = require('./routes/ventas');
 const ventasDetalleRoute = require('./routes/venta-detalle');
+const ordenesRoute = require('./routes/ordenes');
+const ordenesDetalleRoute = require('./routes/ordenes-detalle');
 
 app.use('/api/articulos', articulosRoute);
 app.use('/api/proveedores', proveedoresRoute);
 app.use('/api/proveedor-articulos', proveedorArticulosRoute);
 app.use('/api/ventas', ventasRoutes);
 app.use('/api/venta-detalle', ventasDetalleRoute);
+app.use('/api/ordenes', ordenesRoute);
+app.use('/api/ordenes-detalle', ordenesDetalleRoute);
 
 // Middleware para manejar errores
 const { errorHandler } = require('./middlewares/errorHandler');
