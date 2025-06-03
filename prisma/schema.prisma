@@ -41,9 +41,9 @@ model Articulo {
 
 model ArticuloProveedor{
 
-  cargoPedidoAP               Int
+  cargoPedidoAP               Float
   demoraEntregaAP             Int
-  precioUnitarioAP            Int
+  precioUnitarioAP            Float
   codProveedor                Int
   codArticulo                 Int
   proveedor                   Proveedor @relation(fields: [codProveedor], references: [codProveedor])
