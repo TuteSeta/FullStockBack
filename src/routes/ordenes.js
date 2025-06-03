@@ -199,3 +199,5 @@ router.delete('/:id/detalle/:detalleId', async (req, res) => {
         res.status(500).json({ error: 'No se pudo eliminar el detalle de la orden de compra' });
     }
 });
+
+module.exports = router;

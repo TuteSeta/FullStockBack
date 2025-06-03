@@ -1,15 +1,18 @@
 const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
+const { ventasSchema } = require('../schemas/ventasSchema');
 
 const prisma = new PrismaClient();
 
 router.post('/', async (req, res) => {
-  const { articulos } = req.body;
 
-  if (!articulos || !Array.isArray(articulos) || articulos.length === 0) {
-    return res.status(400).json({ error: 'Debe incluir al menos un artículo en la venta.' });
+  const parseResult = ventasSchema.safeParse(req.body);
+
+  if (!parseResult.success) {
+    return res.status(400).json({ error: parseResult.error.errors });
   }
+  const { articulos } = parseResult.data;
 
   try {
     const detalles = [];
