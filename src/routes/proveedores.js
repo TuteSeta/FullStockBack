@@ -59,6 +59,12 @@ router.delete('/:codProveedor', async (req, res) => {
   const codProveedor = parseInt(req.params.codProveedor);
 
   try {
+
+    // 1. Eliminar relaciones con artículos
+    await prisma.articuloProveedor.deleteMany({
+      where: { codProveedor }
+    });
+    
     // Actualizar la fecha de baja en lugar de eliminar
     const proveedorBaja = await prisma.proveedor.update({
       where: { codProveedor },
