@@ -2,25 +2,43 @@ const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+const { ordenesDetalleUpdateSchema } = require('../schemas/ordenesDetalleUpdateSchema');
+
 
 // PUT /api/ordenes-detalle/:nroRenglonDOC
 router.put('/:nroRenglonDOC', async (req, res) => {
   const { nroRenglonDOC } = req.params;
-  const { nuevaCantidad, nuevoMonto } = req.body;
 
+  const parseResult = ordenesDetalleUpdateSchema.safeParse(req.body);
+  if (!parseResult.success) {
+    return res.status(400).json({ error: parseResult.error.errors });
+  }
+  const { nuevaCantidad } = parseResult.data;
+  
   try {
     const detalle = await prisma.detalleOrdenCompra.findUnique({
       where: { nroRenglonDOC: parseInt(nroRenglonDOC) },
-      include: {
-        articulo: true,
-        ordenCompra: true,
-      },
     });
 
     if (!detalle) {
       return res.status(404).json({ error: 'Detalle no encontrado' });
     }
 
+    // Buscar el precio actual de la relación articuloProveedor
+    const relacion = await prisma.articuloProveedor.findUnique({
+      where: {
+        codArticulo_codProveedor: {
+          codArticulo: detalle.codArticulo,
+          codProveedor: detalle.codProveedor,
+        }
+      }
+    });
+    if (!relacion) {
+      return res.status(400).json({ error: 'No existe relación proveedor-artículo' });
+    }
+
+    const nuevoMonto = relacion.precioUnitarioAP * nuevaCantidad;
+    
     // Actualizar detalle
     await prisma.detalleOrdenCompra.update({
       where: { nroRenglonDOC: parseInt(nroRenglonDOC) },
@@ -33,7 +51,7 @@ router.put('/:nroRenglonDOC', async (req, res) => {
     // Actualizar monto total de la orden de compra
     const otrosDetalles = await prisma.detalleOrdenCompra.findMany({
       where: {
-        codOrdenCompra: detalle.codOrdenCompra,
+        nroOrdenCompra: detalle.nroOrdenCompra,
       },
     });
 
@@ -44,7 +62,7 @@ router.put('/:nroRenglonDOC', async (req, res) => {
     , 0);
 
     await prisma.ordenCompra.update({
-      where: { codOrdenCompra: detalle.codOrdenCompra },
+      where: { nroOrdenCompra: detalle.nroOrdenCompra },
       data: { montoOrdenCompra: nuevoMontoTotal },
     });
 
@@ -77,14 +95,14 @@ router.delete('/:nroRenglonDOC', async (req, res) => {
     // Actualizar monto total de la orden de compra
     const otrosDetalles = await prisma.detalleOrdenCompra.findMany({
       where: {
-        codOrdenCompra: detalle.codOrdenCompra,
+        nroOrdenCompra: detalle.nroOrdenCompra,
       },
     });
 
     const nuevoMontoTotal = otrosDetalles.reduce((sum, d) => sum + d.montoDOC, 0);
 
     await prisma.ordenCompra.update({
-      where: { codOrdenCompra: detalle.codOrdenCompra },
+      where: { nroOrdenCompra: detalle.nroOrdenCompra },
       data: { montoOrdenCompra: nuevoMontoTotal },
     });
 

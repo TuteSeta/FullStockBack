@@ -9,8 +9,25 @@ router.post('/', async (req, res) => {
   try{
     const { codProveedor, detalleOC} = ordenesSchema.parse(req.body); // valida y convierte
 
-    // Calcular montoOrdenCompra
-    const montoOrdenCompra = detalleOC.reduce((total, item) => total + Number(item.montoDOC), 0);
+    // Calcular montos usando el precio de la relación articuloProveedor
+    const detallesConMontos = await Promise.all(detalleOC.map(async (item) => {
+      const relacion = await prisma.articuloProveedor.findUnique({
+        where: {
+          codArticulo_codProveedor: {
+            codArticulo: item.codArticulo,
+            codProveedor: codProveedor,
+          }
+        }
+      });
+      if (!relacion) throw new Error(`El proveedor no tiene el artículo ${item.codArticulo}`);
+      return {
+        codArticulo: item.codArticulo,
+        cantidadDOC: item.cantidadDOC,
+        montoDOC: relacion.precioUnitarioAP * item.cantidadDOC
+      };
+    }));
+
+    const montoOrdenCompra = detallesConMontos.reduce((total, item) => total + Number(item.montoDOC), 0);
 
     // Crear la orden de compra en estado Pendiente 
     const nuevaOC = await prisma.ordenCompra.create({
@@ -19,11 +36,7 @@ router.post('/', async (req, res) => {
             montoOrdenCompra,
             codEstadoOrdenCompra: 1, // Pendiente
             detalleOrdenCompra: {
-                create: detalleOC.map(item => ({
-                    codArticulo: item.codArticulo,
-                    cantidadDOC: item.cantidadDOC,
-                    montoDOC: item.montoDOC
-                }))
+                create: detallesConMontos
             }
         },
         include: {
@@ -63,7 +76,7 @@ router.get('/:id', async (req, res) => {
 
   try {
     const orden = await prisma.ordenCompra.findUnique({
-      where: { codOrdenCompra: parseInt(id) },
+      where: { nroOrdenCompra: parseInt(id) },
       include: {
         detalleOrdenCompra: true,
         proveedor: true,
@@ -91,7 +104,7 @@ router.put('/:id', async (req, res) => {
     try {
         // Buscar la orden de compra 
         const orden = await prisma.ordenCompra.findUnique({
-            where: { codOrdenCompra: parseInt(id) },
+            where: { nroOrdenCompra: parseInt(id) },
         });
 
         if (!orden) {
@@ -103,25 +116,38 @@ router.put('/:id', async (req, res) => {
             return res.status(400).json({ error: 'Solo se pueden actualizar órdenes en estado Pendiente' });
         }
 
-        // Calcular nuevo montoOrdenCompra
-        const montoOrdenCompra = detalleOC.reduce((total, item) => total + Number(item.montoDOC), 0);
+        // Calcular montos usando el precio de la relación articuloProveedor
+        const detallesConMontos = await Promise.all(detalleOC.map(async (item) => {
+          const relacion = await prisma.articuloProveedor.findUnique({
+            where: {
+              codArticulo_codProveedor: {
+                codArticulo: item.codArticulo,
+                codProveedor: codProveedor,
+              }
+            }
+          });
+          if (!relacion) throw new Error(`El proveedor no tiene el artículo ${item.codArticulo}`);
+          return {
+            codArticulo: item.codArticulo,
+            cantidadDOC: item.cantidadDOC,
+            montoDOC: relacion.precioUnitarioAP * item.cantidadDOC
+          };
+        }));
+
+        const montoOrdenCompra = detallesConMontos.reduce((total, item) => total + Number(item.montoDOC), 0);
 
         // Actualizar la orden de compra
         await prisma.detalleOrdenCompra.deleteMany({
-            where: { codOrdenCompra: orden.codOrdenCompra }
+            where: { nroOrdenCompra: orden.nroOrdenCompra }
         });
 
         const ordenActualizada = await prisma.ordenCompra.update({
-            where: { codOrdenCompra: orden.codOrdenCompra },
+            where: { nroOrdenCompra: orden.nroOrdenCompra },
             data: {
                 codProveedor,
                 montoOrdenCompra,
                 detalleOrdenCompra: {
-                    create: detalleOC.map(item => ({
-                        codArticulo: item.codArticulo,
-                        cantidadDOC: item.cantidadDOC,
-                        montoDOC: item.montoDOC
-                    }))
+                    create: detallesConMontos
                 }
             },
         include: {
@@ -144,7 +170,7 @@ router.delete('/:id', async (req, res) => {
     try {
         // Buscar la orden de compra
         const orden = await prisma.ordenCompra.findUnique({
-            where: { codOrdenCompra: parseInt(id) },
+            where: { nroOrdenCompra: parseInt(id) },
         });
 
         if (!orden) {
@@ -158,7 +184,7 @@ router.delete('/:id', async (req, res) => {
 
         // Realizar la baja lógica actualizando la fechaHoraBajaOrdenCompra
         await prisma.ordenCompra.update({
-            where: { codOrdenCompra: orden.codOrdenCompra },
+            where: { nroOrdenCompra: orden.nroOrdenCompra },
             data: { fechaHoraBajaOrdenCompra: new Date() }
         });
 
@@ -176,7 +202,7 @@ router.delete('/:id/detalle/:detalleId', async (req, res) => {
     try {
         // Buscar la orden de compra
         const orden = await prisma.ordenCompra.findUnique({
-            where: { codOrdenCompra: parseInt(id) }
+            where: { nroOrdenCompra: parseInt(id) }
         });
 
         if (!orden) {
