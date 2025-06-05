@@ -6,14 +6,14 @@ const { proveedorSchema } = require('../schemas/proveedorSchema');
 // PUT /api/proveedores/:codProveedor
 router.put('/:codProveedor', async (req, res) => {
   const codProveedor = parseInt(req.params.codProveedor);
-  const { nombreProveedor } = req.body;
+  const { nombreProveedor, fechaHoraBajaProveedor } = req.body;
 
   try {
     const proveedorActualizado = await prisma.proveedor.update({
       where: { codProveedor },
       data: {
         nombreProveedor,
-        // si querés actualizar más campos, agregalos acá
+        fechaHoraBajaProveedor: fechaHoraBajaProveedor ? new Date(fechaHoraBajaProveedor) : null,
       },
     });
 
@@ -24,13 +24,15 @@ router.put('/:codProveedor', async (req, res) => {
   }
 });
 
-// GET /api/proveedores
+// GET /api/proveedores?soloActivos=true
 router.get('/', async (req, res) => {
+  const soloActivos = req.query.soloActivos === 'true';
 
   try {
     const proveedores = await prisma.proveedor.findMany({
-      where: { fechaHoraBajaProveedor: null }, // Solo los activos
+      where: soloActivos ? { fechaHoraBajaProveedor: null } : {},
     });
+
     res.status(200).json(proveedores);
   } catch (error) {
     console.error(error);
@@ -64,7 +66,7 @@ router.delete('/:codProveedor', async (req, res) => {
     await prisma.articuloProveedor.deleteMany({
       where: { codProveedor }
     });
-    
+
     // Actualizar la fecha de baja en lugar de eliminar
     const proveedorBaja = await prisma.proveedor.update({
       where: { codProveedor },
