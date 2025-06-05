@@ -6,12 +6,12 @@ const { ventasSchema } = require('../schemas/ventasSchema');
 const prisma = new PrismaClient();
 
 router.post('/', async (req, res) => {
-
   const parseResult = ventasSchema.safeParse(req.body);
 
   if (!parseResult.success) {
     return res.status(400).json({ error: parseResult.error.errors });
   }
+
   const { articulos } = parseResult.data;
 
   try {
@@ -38,13 +38,12 @@ router.post('/', async (req, res) => {
       const precioUnitario = articulo.costoCompra;
       const montoDetalleVenta = precioUnitario * cantidad;
 
-      // Acumular los datos del detalle
       detalles.push({
         codArticulo,
         cantidad,
         precioUnitario,
         montoDetalleVenta,
-        articulo, // guardamos el objeto completo para uso posterior (stock/lote)
+        articulo,
       });
 
       montoTotalVenta += montoDetalleVenta;
@@ -79,6 +78,24 @@ router.post('/', async (req, res) => {
       },
     });
 
+    // Buscar o crear el estado "Pendiente" de forma insensible
+    let estadoPendiente = await prisma.estadoOrdenCompra.findFirst({
+      where: {
+        nombreEstadoOC: {
+          equals: "Pendiente",
+          mode: "insensitive",
+        },
+      },
+    });
+
+    if (!estadoPendiente) {
+      estadoPendiente = await prisma.estadoOrdenCompra.create({
+        data: {
+          nombreEstadoOC: "Pendiente",
+        },
+      });
+    }
+
     // Actualizar stock y verificar modelo Lote Fijo
     for (const d of detalles) {
       const nuevoStock = d.articulo.cantArticulo - d.cantidad;
@@ -109,11 +126,12 @@ router.post('/', async (req, res) => {
               data: {
                 montoOrdenCompra: d.articulo.costoCompra,
                 codProveedor: proveedor.codProveedor,
-                codEstadoOrdenCompra: 1, // Estado "Pendiente"
+                codEstadoOrdenCompra: estadoPendiente.codEstadoOrdenCompra, // ✅ dinámico
                 detalleOrdenCompra: {
                   create: {
                     montoDOC: d.articulo.costoCompra,
                     codArticulo: d.codArticulo,
+                    cantidadDOC: modeloLF?.loteOptimo ?? d.cantidad, // ✅ extra
                   },
                 },
               },
@@ -131,7 +149,6 @@ router.post('/', async (req, res) => {
   }
 });
 
-// GET /api/ventas - Listar ventas con artículos (usando DetalleVenta) 
 router.get('/', async (req, res) => {
   try {
     const ventas = await prisma.ventas.findMany({
@@ -157,7 +174,6 @@ router.get('/', async (req, res) => {
   }
 });
 
-// DELETE /api/ventas/:id
 router.delete('/:id', async (req, res) => {
   const { id } = req.params;
 
@@ -173,24 +189,21 @@ router.delete('/:id', async (req, res) => {
       return res.status(404).json({ error: 'La venta no existe' });
     }
 
-    // Actualizar stock de cada artículo en el detalle de la venta
     for (const detalle of venta.detalleVenta) {
       await prisma.articulo.update({
         where: { codArticulo: detalle.codArticulo },
         data: {
           cantArticulo: {
-            increment: detalle.cantidad, // Aumentar el stock
+            increment: detalle.cantidad,
           },
         },
       });
     }
 
-    // Eliminar los detalles de la venta
     await prisma.detalleVenta.deleteMany({
       where: { nroVenta: parseInt(id) },
     });
 
-    // Eliminar la venta
     await prisma.ventas.delete({
       where: { nroVenta: parseInt(id) },
     });
@@ -201,6 +214,5 @@ router.delete('/:id', async (req, res) => {
     res.status(500).json({ error: 'No se pudo eliminar la venta' });
   }
 });
-
 
 module.exports = router;
