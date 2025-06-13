@@ -108,7 +108,7 @@ model OrdenCompra {
 model EstadoOrdenCompra {
  codEstadoOrdenCompra           Int   @id @default(autoincrement())
  fechaHoraBajaEstadoOC          DateTime? 
- nombreEstadoOC                 String
+ nombreEstadoOC                 String @unique
  ordenCompra                    OrdenCompra[]
 }
 
