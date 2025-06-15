@@ -18,6 +18,13 @@ router.put('/:nroRenglonDOC', async (req, res) => {
   try {
     const detalle = await prisma.detalleOrdenCompra.findUnique({
       where: { nroRenglonDOC: parseInt(nroRenglonDOC) },
+      include: {
+        ordenCompra: {
+          select: {
+            codProveedor: true,
+          }
+        }
+      }
     });
 
     if (!detalle) {
@@ -29,7 +36,7 @@ router.put('/:nroRenglonDOC', async (req, res) => {
       where: {
         codArticulo_codProveedor: {
           codArticulo: detalle.codArticulo,
-          codProveedor: detalle.codProveedor,
+          codProveedor: detalle.ordenCompra.codProveedor,
         }
       }
     });
