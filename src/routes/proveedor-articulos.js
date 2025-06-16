@@ -3,12 +3,14 @@ const router = express.Router();
 const prisma = require('../prismaClient');
 const { proveedorArticuloSchema } = require('../schemas/proveedorArticuloSchema');
 
-
+// PUT /api/proveedor-articulos/:proveedorId/:articuloId
 router.put('/:proveedorId/:articuloId', async (req, res) => {
     const { proveedorId, articuloId } = req.params;
-    const { precioUnitarioAP, cargoPedidoAP, demoraEntregaAP } = req.body;
 
     try {
+        // Validamos y parseamos los datos del body
+        const data = proveedorArticuloSchema.parse(req.body);
+
         const actualizado = await prisma.articuloProveedor.update({
             where: {
                 codArticulo_codProveedor: {
@@ -16,11 +18,7 @@ router.put('/:proveedorId/:articuloId', async (req, res) => {
                     codProveedor: parseInt(proveedorId),
                 },
             },
-            data: {
-                precioUnitarioAP: parseFloat(precioUnitarioAP),
-                cargoPedidoAP: parseFloat(cargoPedidoAP),
-                demoraEntregaAP: parseInt(demoraEntregaAP),
-            },
+            data,
         });
 
         res.status(200).json(actualizado);
@@ -30,8 +28,6 @@ router.put('/:proveedorId/:articuloId', async (req, res) => {
     }
 });
 
-
-
 // GET /api/proveedor-articulos/proveedor/:codProveedor
 router.get('/proveedor/:codProveedor', async (req, res) => {
     const codProveedor = parseInt(req.params.codProveedor);
@@ -39,7 +35,7 @@ router.get('/proveedor/:codProveedor', async (req, res) => {
     try {
         const relaciones = await prisma.articuloProveedor.findMany({
             where: { codProveedor },
-            include: { articulo: true } // esto trae todos los datos del artículo asociado
+            include: { articulo: true },
         });
 
         res.status(200).json(relaciones);
@@ -52,7 +48,9 @@ router.get('/proveedor/:codProveedor', async (req, res) => {
 // GET /api/proveedor-articulos
 router.get('/', async (req, res) => {
     try {
-        const relaciones = await prisma.articuloProveedor.findMany();
+        const relaciones = await prisma.articuloProveedor.findMany({
+            include: { proveedor: true, articulo: true },
+        });
         res.status(200).json(relaciones);
     } catch (error) {
         console.error(error);
@@ -63,18 +61,21 @@ router.get('/', async (req, res) => {
 // POST /api/proveedor-articulos
 router.post('/', async (req, res, next) => {
     try {
-        const data = proveedorArticuloSchema.parse(req.body); // validación con Zod
+        const data = proveedorArticuloSchema.parse(req.body);
+
         const nuevo = await prisma.articuloProveedor.create({ data });
+
         res.status(201).json(nuevo);
     } catch (error) {
         console.error(error);
-        next(error); // se maneja con middleware de errores si tenés
+        next(error);
     }
 });
 
 // DELETE /api/proveedor-articulos/:codProveedor/:codArticulo
 router.delete('/:codProveedor/:codArticulo', async (req, res) => {
     const { codProveedor, codArticulo } = req.params;
+
     try {
         await prisma.articuloProveedor.delete({
             where: {
@@ -84,6 +85,7 @@ router.delete('/:codProveedor/:codArticulo', async (req, res) => {
                 },
             },
         });
+
         res.status(204).send();
     } catch (err) {
         console.error(err);
@@ -91,6 +93,4 @@ router.delete('/:codProveedor/:codArticulo', async (req, res) => {
     }
 });
 
-
 module.exports = router;
-

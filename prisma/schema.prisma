@@ -19,11 +19,8 @@ model Articulo {
   descripcion                       String
   demanda                           Int
   cantArticulo                      Int
-  cantMaxArticulo                   Int
-  costoAlmacenamiento               Float
+  precioArticulo                    Float
   costoMantenimiento                Float
-  costoPedido                       Float
-  costoCompra                       Float
   desviacionDemandaLArticulo        Float
   desviacionDemandaTArticulo        Float
   nivelServicioDeseado              Float
@@ -32,18 +29,20 @@ model Articulo {
   updatedAt                         DateTime @updatedAt
   articuloProveedores               ArticuloProveedor[]
   modeloInventarioIntervaloFijoCod  Int?
-  modeloInventarioLoteFijoCod       Int?
+  modeloInventarioLoteFijoCod       Int?
   modeloInventarioIntervaloFijo     ModeloInventarioIntervaloFijo? @relation(fields: [modeloInventarioIntervaloFijoCod], references: [modeloInventarioIntervaloFijoCod])
-  modeloInventarioLoteFijo          ModeloInventarioLoteFijo? @relation(fields: [modeloInventarioLoteFijoCod], references: [modeloInventarioLoteFijoCod]) 
+  modeloInventarioLoteFijo          ModeloInventarioLoteFijo? @relation(fields: [modeloInventarioLoteFijoCod], references: [modeloInventarioLoteFijoCod])
   detalleOrdenCompra                DetalleOrdenCompra[]
-  detalleVenta                      DetalleVenta[]  
+  detalleVenta                      DetalleVenta[]
+  codProveedorPredeterminado Int?
+  proveedorPredeterminado    Proveedor? @relation("ProveedorPredeterminado", fields: [codProveedorPredeterminado], references: [codProveedor])
 }
 
 model ArticuloProveedor{
 
   cargoPedidoAP               Float
   demoraEntregaAP             Int
-  precioUnitarioAP            Float
+  costoUnitarioAP            Float
   codProveedor                Int
   codArticulo                 Int
   proveedor                   Proveedor @relation(fields: [codProveedor], references: [codProveedor])
@@ -91,6 +90,8 @@ model Proveedor {
   nombreProveedor               String
   articuloProveedores           ArticuloProveedor[]
   ordenCompra                   OrdenCompra[]
+  articulosPredeterminados      Articulo[] @relation("ProveedorPredeterminado") // 👈 CAMPO INVERSO
+
 }
 
 model OrdenCompra {
