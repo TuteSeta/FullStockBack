@@ -4,9 +4,9 @@ const { z } = require('zod');
 const proveedorArticuloSchema = z.object({
   codProveedor: z.number().int(),
   codArticulo: z.number().int(),
-   cargoPedidoAP: z.number().nonnegative(), // ya no es .int()
-  demoraEntregaAP: z.number().int(),       // esto puede quedar int si son días
-  precioUnitarioAP: z.number().nonnegative()
+  cargoPedidoAP: z.number().nonnegative(), 
+  demoraEntregaAP: z.number().int(),       
+  costoUnitarioAP: z.number().nonnegative()
 });
 
 module.exports = { proveedorArticuloSchema };

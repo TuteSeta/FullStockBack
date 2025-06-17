@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const prisma = require('../prismaClient');
 const { proveedorSchema } = require('../schemas/proveedorSchema');
+const { calcularModeloLoteFijo } = require('../utils/inventario');
+
 
 // PUT /api/proveedores/:codProveedor
 router.put('/:codProveedor', async (req, res) => {
@@ -17,6 +19,36 @@ router.put('/:codProveedor', async (req, res) => {
       },
     });
 
+    // 🔁 Buscar todos los artículos donde este proveedor es predeterminado
+    const articulosRelacionados = await prisma.articulo.findMany({
+      where: {
+        codProveedorPredeterminado: codProveedor,
+        fechaHoraBajaArticulo: null,
+      },
+      include: {
+        modeloInventarioLoteFijo: true,
+        articuloProveedores: {
+          where: { codProveedor }
+        }
+      }
+    });
+
+    for (const articulo of articulosRelacionados) {
+      const relacion = articulo.articuloProveedores[0];
+      if (!relacion) continue;
+
+      const nuevosValores = calcularModeloLoteFijo(articulo, relacion);
+
+      await prisma.modeloInventarioLoteFijo.upsert({
+        where: { codArticulo: articulo.codArticulo },
+        update: nuevosValores,
+        create: {
+          ...nuevosValores,
+          codArticulo: articulo.codArticulo
+        }
+      });
+    }
+
     res.status(200).json(proveedorActualizado);
   } catch (error) {
     console.error('Error al actualizar proveedor:', error);
@@ -30,9 +62,10 @@ router.get('/', async (req, res) => {
 
   try {
     const proveedores = await prisma.proveedor.findMany({
-      where: soloActivos ? { fechaHoraBajaProveedor: null } : {},
+      where: {
+        fechaHoraBajaProveedor: null, // 👈 excluye dados de baja
+      },
     });
-
     res.status(200).json(proveedores);
   } catch (error) {
     console.error(error);
