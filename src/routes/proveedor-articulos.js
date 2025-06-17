@@ -6,7 +6,6 @@ const { proveedorArticuloSchema } = require('../schemas/proveedorArticuloSchema'
 // PUT /api/proveedor-articulos/:proveedorId/:articuloId
 router.put('/:proveedorId/:articuloId', async (req, res) => {
     const { proveedorId, articuloId } = req.params;
-
     try {
         // Validamos y parseamos los datos del body
         const data = proveedorArticuloSchema.parse(req.body);
