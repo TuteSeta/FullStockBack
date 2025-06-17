@@ -12,8 +12,9 @@ function calcularModeloLoteFijo(articulo, proveedor) {
 
   const loteOptimo = Math.sqrt((2 * D * S) / H);
   const d = D / 365;
-  const puntoPedido = d * L;
-  const stockSeguridadLF = z * sigma * Math.sqrt(L);
+  const sigmaL = sigma * Math.sqrt(L);
+  const puntoPedido = d * L + z * sigmaL;
+  const stockSeguridadLF = z * sigmaL;
 
   return {
     loteOptimo: Math.round(loteOptimo),

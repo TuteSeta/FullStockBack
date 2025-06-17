@@ -6,6 +6,7 @@ const { calcularModeloLoteFijo } = require('../utils/inventario');
 
 // PUT /api/articulos/:id
 router.put('/:id', async (req, res) => {
+  console.log('Body recibido:', req.body);
   const { id } = req.params;
   const data = articulosSchema.parse(req.body);
 
@@ -18,7 +19,9 @@ router.put('/:id', async (req, res) => {
 
   const updateData = { ...articuloData };
   delete updateData.codArticulo;
+  delete updateData.recalcularLoteFijo; // 👈 SOLO AQUÍ
 
+  console.log('recalcularLoteFijo:', recalcularLoteFijo);
   if (recalcularLoteFijo) {
     let loteOptimo = 0;
     let puntoPedido = 0;
@@ -30,19 +33,33 @@ router.put('/:id', async (req, res) => {
         include: {
           articuloProveedores: {
             where: { codArticulo: parseInt(id) },
+            select: {
+              codArticulo: true,
+              cargoPedidoAP: true,
+              demoraEntregaAP: true,
+            },
           },
         },
       });
 
       const relacion = proveedor?.articuloProveedores[0];
 
-      if (relacion) {
+      if (relacion && relacion.cargoPedidoAP && relacion.demoraEntregaAP) {
+        console.log('Entrando al cálculo de lote fijo');
         const articuloParaCalculo = {
           demanda: Number(data.demanda),
           costoMantenimiento: Number(data.costoMantenimiento),
           desviacionDemandaLArticulo: Number(data.desviacionDemandaLArticulo),
           nivelServicioDeseado: Number(data.nivelServicioDeseado),
         };
+        console.log('Datos para cálculo:', {
+          demanda: data.demanda,
+          costoMantenimiento: data.costoMantenimiento,
+          desviacionDemandaLArticulo: data.desviacionDemandaLArticulo,
+          nivelServicioDeseado: data.nivelServicioDeseado,
+          cargoPedidoAP: relacion?.cargoPedidoAP,
+          demoraEntregaAP: relacion?.demoraEntregaAP,
+        });
 
         try {
           const calculado = calcularModeloLoteFijo(articuloParaCalculo, relacion);
@@ -52,6 +69,8 @@ router.put('/:id', async (req, res) => {
         } catch (e) {
           return res.status(400).json({ error: 'No se pudo calcular modelo: ' + e.message });
         }
+      } else {
+        return res.status(400).json({ error: 'Faltan datos en la relación proveedor-artículo' });
       }
     }
 
@@ -113,11 +132,9 @@ router.put('/:id', async (req, res) => {
 });
 
 
-
 // DELETE /api/articulos/:id
 router.delete('/:id', async (req, res) => {
   const { id } = req.params;
-
   try {
     await prisma.articulo.update({
       where: { codArticulo: parseInt(id) },
@@ -128,6 +145,28 @@ router.delete('/:id', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Error al dar de baja el artículo' });
+  }
+});
+
+// GET /api/articulos/:id
+router.get('/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const articulo = await prisma.articulo.findUnique({
+      where: { codArticulo: parseInt(id) },
+      include: {
+        modeloInventarioLoteFijo: true,
+        modeloInventarioIntervaloFijo: true,
+        proveedorPredeterminado: true,
+      },
+    });
+    if (!articulo) {
+      return res.status(404).json({ error: 'Artículo no encontrado' });
+    }
+    res.status(200).json(articulo);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al obtener el artículo' });
   }
 });
 
@@ -143,7 +182,6 @@ router.get('/', async (req, res) => {
         modeloInventarioIntervaloFijo: true,
         proveedorPredeterminado: true,
       },
-
     });
     res.status(200).json(articulos);
   } catch (error) {
@@ -171,19 +209,24 @@ router.post('/', async (req, res, next) => {
       let puntoPedido = 0;
       let stockSeguridadLF = 0;
 
-      if (data.codProveedorPredeterminado) {
+      if (data.codProveedorPredeterminado && data.codArticulo) {
         const proveedor = await prisma.proveedor.findUnique({
           where: { codProveedor: data.codProveedorPredeterminado },
           include: {
-            articuloProveedores: true,
+            articuloProveedores: {
+              where: { codArticulo: data.codArticulo },
+              select: {
+                codArticulo: true,
+                cargoPedidoAP: true,
+                demoraEntregaAP: true,
+              },
+            },
           },
         });
 
-        const relacion = proveedor?.articuloProveedores.find(
-          (rel) => rel.codArticulo == null
-        );
+        const relacion = proveedor?.articuloProveedores[0];
 
-        if (relacion) {
+        if (relacion && relacion.cargoPedidoAP && relacion.demoraEntregaAP) {
           const articuloParaCalculo = {
             demanda: Number(data.demanda),
             costoMantenimiento: Number(data.costoMantenimiento),
@@ -226,6 +269,7 @@ router.post('/', async (req, res, next) => {
     }
 
     delete createData.codProveedorPredeterminado;
+    delete createData.recalcularLoteFijo; // 👈 SOLO AQUÍ
 
     const nuevo = await prisma.articulo.create({
       data: createData,
@@ -242,7 +286,5 @@ router.post('/', async (req, res, next) => {
     next(error);
   }
 });
-
-
 
 module.exports = router;

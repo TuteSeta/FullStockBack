@@ -18,10 +18,11 @@ const articulosSchema = z.object({
       val === undefined || val === null || (typeof val === 'object' && Object.keys(val).length === 0)
         ? undefined
         : val,
-    modeloInventarioLoteFijoSchema.optional()
+    modeloInventarioLoteFijoSchema.optional().nullable() // <-- acepta null
   ),
-  modeloInventarioIntervaloFijo: modeloInventarioIntervaloFijoSchema.optional(),
+  modeloInventarioIntervaloFijo: modeloInventarioIntervaloFijoSchema.optional().nullable(), // <-- acepta null
   codProveedorPredeterminado: z.coerce.number().int().nonnegative().optional(),
+  recalcularLoteFijo: z.boolean().optional(),
 });
 
 module.exports = { articulosSchema };
