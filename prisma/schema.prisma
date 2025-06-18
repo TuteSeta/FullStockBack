@@ -55,6 +55,7 @@ model ModeloInventarioIntervaloFijo {
   intervaloTiempo                     Int
   stockSeguridadIF                    Int
   inventarioMaximo                    Int
+  cantidadPedido                      Int?
   articulos                           Articulo[] // Relación inversa
 }
 

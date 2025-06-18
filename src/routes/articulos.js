@@ -103,8 +103,11 @@ router.put('/:id', async (req, res) => {
   //INTERVALO FIJO
   if (
     modeloInventarioIntervaloFijo &&
-    (modeloInventarioIntervaloFijo.stockSeguridadIF === '' ||
-      modeloInventarioIntervaloFijo.inventarioMaximo === '')
+    (
+    modeloInventarioIntervaloFijo.stockSeguridadIF == null ||
+    modeloInventarioIntervaloFijo.inventarioMaximo == null ||
+    modeloInventarioIntervaloFijo.cantidadPedido == null
+    )
   ) {
     const proveedor = await prisma.proveedor.findUnique({
       where: { codProveedor: data.codProveedorPredeterminado },
@@ -125,6 +128,12 @@ router.put('/:id', async (req, res) => {
       });
     }
 
+      // Obtener el stock actual del artículo
+    const articuloActual = await prisma.articulo.findUnique({
+      where: { codArticulo: parseInt(id) },
+      select: { cantArticulo: true }
+    });
+
     try {
       const resultado = calcularModeloIntervaloFijo({
         demanda: Number(data.demanda),
@@ -132,10 +141,12 @@ router.put('/:id', async (req, res) => {
         nivelServicioDeseado: Number(data.nivelServicioDeseado),
         intervaloTiempo: Number(modeloInventarioIntervaloFijo.intervaloTiempo),
         demoraEntrega: Number(relacion.demoraEntregaAP),
+        inventarioActual: Number(articuloActual?.cantArticulo) || 0,
       });
 
       modeloInventarioIntervaloFijo.stockSeguridadIF = resultado.stockSeguridadIF;
       modeloInventarioIntervaloFijo.inventarioMaximo = resultado.inventarioMaximo;
+      modeloInventarioIntervaloFijo.cantidadPedido = resultado.cantidadPedido;
     } catch (e) {
       return res.status(400).json({ error: 'Error al calcular modelo IF: ' + e.message });
     }
@@ -297,6 +308,7 @@ router.post('/', async (req, res, next) => {
     else if (modeloInventarioIntervaloFijo) {
       let stockSeguridadIF = 0;
       let inventarioMaximo = 0;
+      let cantidadPedido = 0;
 
       if (data.codProveedorPredeterminado) {
         const proveedor = await prisma.proveedor.findUnique({
@@ -321,6 +333,7 @@ router.post('/', async (req, res, next) => {
 
           stockSeguridadIF = resultado.stockSeguridadIF;
           inventarioMaximo = resultado.inventarioMaximo;
+          cantidadPedido = resultado.cantidadPedido;
         }
       }
 
@@ -329,6 +342,7 @@ router.post('/', async (req, res, next) => {
           intervaloTiempo: Number(modeloInventarioIntervaloFijo.intervaloTiempo),
           stockSeguridadIF,
           inventarioMaximo,
+          cantidadPedido,
         },
       };
     }

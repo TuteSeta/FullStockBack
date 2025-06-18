@@ -23,18 +23,39 @@ function calcularModeloLoteFijo(articulo, proveedor) {
   };
 }
 
-function calcularModeloIntervaloFijo({ demanda, desviacionDemanda, nivelServicioDeseado, intervaloTiempo, demoraEntrega }) {
+function calcularModeloIntervaloFijo({
+  demanda,                // d: Demanda diaria promedio pronosticada
+  desviacionDemanda,      // σ: Desviación estándar de la demanda diaria
+  nivelServicioDeseado,   // z: Número de desviaciones estándar para el nivel de servicio
+  intervaloTiempo,        // T: Número de días entre revisiones
+  demoraEntrega,          // L: Tiempo de entrega en días
+  inventarioActual    // I: Nivel de inventario actual (incluye piezas pedidas)
+}) {
   const T = intervaloTiempo;
   const L = demoraEntrega;
-  const D = demanda;
+  const d = demanda;
   const sigma = desviacionDemanda;
-  const Z = nivelServicioDeseado;
+  const z = nivelServicioDeseado;
+  const I = inventarioActual;
 
-  const stockSeguridadIF = Math.round(Z * sigma * Math.sqrt(T + L));
-  const inventarioMaximo = Math.round(D * (T + L) + stockSeguridadIF);
+  // Desviación estándar durante el periodo vulnerable (T + L)
+  const sigmaTL = sigma * Math.sqrt(T + L);
 
-  return { stockSeguridadIF, inventarioMaximo };
+  // Stock de seguridad
+  const stockSeguridadIF = Math.round(z * sigmaTL);
+
+  // Demanda promedio durante el periodo vulnerable
+  const demandaPeriodoVulnerable = d * (T + L);
+
+  // Cantidad a pedir (fórmula de la imagen)
+  const cantidadPedido = Math.round(demandaPeriodoVulnerable + stockSeguridadIF - I);
+
+  // Inventario máximo (opcional, si lo usás)
+  const inventarioMaximo = Math.round(demandaPeriodoVulnerable + stockSeguridadIF);
+
+  return { stockSeguridadIF, inventarioMaximo, cantidadPedido };
 }
+
 module.exports = {
   calcularModeloLoteFijo,
   calcularModeloIntervaloFijo,

@@ -106,9 +106,10 @@ router.put('/:id', async (req, res) => {
   const { codProveedor, detalleOC } = ordenesSchema.parse(req.body); // valida y convierte
 
   try {
-    // Buscar la orden de compra 
+    // Buscar la orden de compra con el estado incluido
     const orden = await prisma.ordenCompra.findUnique({
       where: { nroOrdenCompra: parseInt(id) },
+      include: { estadoOrdenCompra: true }
     });
 
     if (!orden) {
@@ -116,7 +117,7 @@ router.put('/:id', async (req, res) => {
     }
 
     // Solo permitir actualizar si la orden está en estado Pendiente
-    if (orden.codEstadoOrdenCompra !== 1) { // 1 es el código para Pendiente
+    if (orden.estadoOrdenCompra?.nombreEstadoOC !== 'Pendiente') {
       return res.status(400).json({ error: 'Solo se pueden actualizar órdenes en estado Pendiente' });
     }
 
@@ -174,21 +175,18 @@ router.delete('/:id', async (req, res) => {
   try {
     const nro = parseInt(id);
 
-    // Buscar la orden de compra
+    // Buscar la orden de compra con el estado incluido
     const orden = await prisma.ordenCompra.findUnique({
       where: { nroOrdenCompra: nro },
+      include: { estadoOrdenCompra: true }
     });
 
     if (!orden) {
       return res.status(404).json({ error: 'Orden de compra no encontrada' });
     }
 
-    // Solo permitir eliminar si la orden está en estado Pendiente
-    const estadoPendiente = await prisma.estadoOrdenCompra.findFirst({
-      where: { nombreEstadoOC: 'Pendiente' }
-    });
-
-    if (orden.codEstadoOrdenCompra !== estadoPendiente?.codEstadoOrdenCompra) {
+    // Solo permitir eliminar si la orden está en estado Pendiente (por nombre)
+    if (orden.estadoOrdenCompra?.nombreEstadoOC !== 'Pendiente') {
       return res.status(400).json({ error: 'Solo se pueden eliminar órdenes en estado Pendiente' });
     }
 
@@ -223,17 +221,18 @@ router.delete('/:id/detalle/:detalleId', async (req, res) => {
   const { id, detalleId } = req.params;
 
   try {
-    // Buscar la orden de compra
+    // Buscar la orden de compra con el estado incluido
     const orden = await prisma.ordenCompra.findUnique({
-      where: { nroOrdenCompra: parseInt(id) }
+      where: { nroOrdenCompra: parseInt(id) },
+      include: { estadoOrdenCompra: true }
     });
 
     if (!orden) {
       return res.status(404).json({ error: 'Orden de compra no encontrada' });
     }
 
-    // Solo permitir eliminar si la orden está en estado Pendiente
-    if (orden.codEstadoOrdenCompra !== 1) {
+    // Solo permitir eliminar si la orden está en estado Pendiente (por nombre)
+    if (orden.estadoOrdenCompra?.nombreEstadoOC !== 'Pendiente') {
       return res.status(400).json({ error: 'Solo se pueden modificar órdenes en estado Pendiente' });
     }
 
@@ -246,6 +245,51 @@ router.delete('/:id/detalle/:detalleId', async (req, res) => {
   } catch (error) {
     console.error('Error al eliminar el detalle de la orden de compra:', error);
     res.status(500).json({ error: 'No se pudo eliminar el detalle de la orden de compra' });
+  }
+});
+
+// PATCH /api/ordenes/:id/enviar
+router.patch('/:id/enviar', async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const orden = await prisma.ordenCompra.findUnique({
+      where: { nroOrdenCompra: parseInt(id) },
+      include: { estadoOrdenCompra: true },
+    });
+
+    if (!orden) {
+      return res.status(404).json({ error: 'Orden no encontrada' });
+    }
+
+    if (orden.estadoOrdenCompra.nombreEstadoOC !== 'Pendiente') {
+      return res.status(400).json({ error: 'Solo se pueden enviar órdenes en estado Pendiente' });
+    }
+
+    // Obtener (o crear si no existe) el estado Enviada
+    const estadoEnviada = await prisma.estadoOrdenCompra.upsert({
+      where: { nombreEstadoOC: 'Enviada' },
+      update: {},
+      create: { nombreEstadoOC: 'Enviada' },
+    });
+
+    const ordenEnviada = await prisma.ordenCompra.update({
+      where: { nroOrdenCompra: parseInt(id) },
+      data: {
+        codEstadoOrdenCompra: estadoEnviada.codEstadoOrdenCompra,
+      },
+      include: {
+        detalleOrdenCompra: true,
+        proveedor: true,
+        estadoOrdenCompra: true,
+      },
+    });
+
+    res.status(200).json({ message: 'Orden enviada', orden: ordenEnviada });
+
+  } catch (error) {
+    console.error('Error al enviar la orden:', error);
+    res.status(500).json({ error: 'No se pudo enviar la orden' });
   }
 });
 
