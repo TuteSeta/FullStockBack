@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const prisma = require('../prismaClient');
 const { articulosSchema } = require('../schemas/articulosSchema');
-const { calcularModeloLoteFijo } = require('../utils/inventario');
+const { calcularModeloLoteFijo, calcularModeloIntervaloFijo } = require('../utils/inventario');
 
 // PUT /api/articulos/:id
 router.put('/:id', async (req, res) => {
@@ -22,7 +22,7 @@ router.put('/:id', async (req, res) => {
   delete updateData.recalcularLoteFijo; // 👈 SOLO AQUÍ
 
   console.log('recalcularLoteFijo:', recalcularLoteFijo);
-  if (recalcularLoteFijo) {
+  if (recalcularLoteFijo && modeloInventarioLoteFijo) {
     let loteOptimo = 0;
     let puntoPedido = 0;
     let stockSeguridadLF = 0;
@@ -99,6 +99,48 @@ router.put('/:id', async (req, res) => {
     updateData.modeloInventarioLoteFijo = { disconnect: true };
     updateData.modeloInventarioIntervaloFijo = { disconnect: true };
   }
+
+  //INTERVALO FIJO
+  if (
+    modeloInventarioIntervaloFijo &&
+    (modeloInventarioIntervaloFijo.stockSeguridadIF === '' ||
+      modeloInventarioIntervaloFijo.inventarioMaximo === '')
+  ) {
+    const proveedor = await prisma.proveedor.findUnique({
+      where: { codProveedor: data.codProveedorPredeterminado },
+      include: {
+        articuloProveedores: {
+          where: { codArticulo: parseInt(id) },
+          select: {
+            demoraEntregaAP: true,
+          },
+        },
+      },
+    });
+
+    const relacion = proveedor?.articuloProveedores[0];
+    if (!relacion) {
+      return res.status(400).json({
+        error: 'No se puede calcular modelo IF: proveedor-artículo sin relación',
+      });
+    }
+
+    try {
+      const resultado = calcularModeloIntervaloFijo({
+        demanda: Number(data.demanda),
+        desviacionDemanda: Number(data.desviacionDemandaTArticulo),
+        nivelServicioDeseado: Number(data.nivelServicioDeseado),
+        intervaloTiempo: Number(modeloInventarioIntervaloFijo.intervaloTiempo),
+        demoraEntrega: Number(relacion.demoraEntregaAP),
+      });
+
+      modeloInventarioIntervaloFijo.stockSeguridadIF = resultado.stockSeguridadIF;
+      modeloInventarioIntervaloFijo.inventarioMaximo = resultado.inventarioMaximo;
+    } catch (e) {
+      return res.status(400).json({ error: 'Error al calcular modelo IF: ' + e.message });
+    }
+  }
+
 
   // Proveedor predeterminado
   if ('codProveedorPredeterminado' in data) {
@@ -253,13 +295,44 @@ router.post('/', async (req, res, next) => {
 
     // Modelo Intervalo Fijo
     else if (modeloInventarioIntervaloFijo) {
+      let stockSeguridadIF = 0;
+      let inventarioMaximo = 0;
+
+      if (data.codProveedorPredeterminado) {
+        const proveedor = await prisma.proveedor.findUnique({
+          where: { codProveedor: data.codProveedorPredeterminado },
+          include: {
+            articuloProveedores: {
+              where: { codArticulo: data.codArticulo },
+              select: { demoraEntregaAP: true },
+            },
+          },
+        });
+
+        const relacion = proveedor?.articuloProveedores[0];
+        if (relacion && relacion.demoraEntregaAP) {
+          const resultado = calcularModeloIntervaloFijo({
+            demanda: Number(data.demanda),
+            desviacionDemanda: Number(data.desviacionDemandaTArticulo),
+            nivelServicioDeseado: Number(data.nivelServicioDeseado),
+            intervaloTiempo: Number(modeloInventarioIntervaloFijo.intervaloTiempo),
+            demoraEntrega: Number(relacion.demoraEntregaAP),
+          });
+
+          stockSeguridadIF = resultado.stockSeguridadIF;
+          inventarioMaximo = resultado.inventarioMaximo;
+        }
+      }
+
       createData.modeloInventarioIntervaloFijo = {
         create: {
-          intervaloTiempo: Number(modeloInventarioIntervaloFijo.intervaloTiempo) || 0,
-          stockSeguridadIF: Number(modeloInventarioIntervaloFijo.stockSeguridadIF) || 0,
+          intervaloTiempo: Number(modeloInventarioIntervaloFijo.intervaloTiempo),
+          stockSeguridadIF,
+          inventarioMaximo,
         },
       };
     }
+
 
     // Proveedor predeterminado (relación externa)
     if (articuloData.codProveedorPredeterminado) {

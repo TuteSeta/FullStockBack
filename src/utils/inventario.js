@@ -23,4 +23,19 @@ function calcularModeloLoteFijo(articulo, proveedor) {
   };
 }
 
-module.exports = { calcularModeloLoteFijo };
+function calcularModeloIntervaloFijo({ demanda, desviacionDemanda, nivelServicioDeseado, intervaloTiempo, demoraEntrega }) {
+  const T = intervaloTiempo;
+  const L = demoraEntrega;
+  const D = demanda;
+  const sigma = desviacionDemanda;
+  const Z = nivelServicioDeseado;
+
+  const stockSeguridadIF = Math.round(Z * sigma * Math.sqrt(T + L));
+  const inventarioMaximo = Math.round(D * (T + L) + stockSeguridadIF);
+
+  return { stockSeguridadIF, inventarioMaximo };
+}
+module.exports = {
+  calcularModeloLoteFijo,
+  calcularModeloIntervaloFijo,
+};
