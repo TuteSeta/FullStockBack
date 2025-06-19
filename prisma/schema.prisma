@@ -24,6 +24,7 @@ model Articulo {
   desviacionDemandaLArticulo        Float
   desviacionDemandaTArticulo        Float
   nivelServicioDeseado              Float
+  ultimaRevision                    DateTime?
   fechaHoraBajaArticulo             DateTime?
   createdAt                         DateTime @default(now())
   updatedAt                         DateTime @updatedAt
