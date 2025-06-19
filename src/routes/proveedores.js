@@ -9,7 +9,6 @@ const { calcularModeloLoteFijo } = require('../utils/inventario');
 router.put('/:codProveedor', async (req, res) => {
   const codProveedor = parseInt(req.params.codProveedor);
   const { nombreProveedor, fechaHoraBajaProveedor } = req.body;
-
   try {
     const proveedorActualizado = await prisma.proveedor.update({
       where: { codProveedor },
