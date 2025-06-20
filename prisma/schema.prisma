@@ -25,6 +25,7 @@ model Articulo {
   desviacionDemandaTArticulo        Float
   nivelServicioDeseado              Float
   ultimaRevision                    DateTime?
+  cgi                               Float?
   fechaHoraBajaArticulo             DateTime?
   createdAt                         DateTime @default(now())
   updatedAt                         DateTime @updatedAt

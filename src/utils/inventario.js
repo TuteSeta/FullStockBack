@@ -56,7 +56,23 @@ function calcularModeloIntervaloFijo({
   return { stockSeguridadIF, inventarioMaximo, cantidadPedido };
 }
 
+function calcularCGI({ demanda, costoUnidad, loteOptimo, costoPedido, costoMantenimiento }) {
+  const D = demanda;
+  const C = costoUnidad;
+  const Q = loteOptimo;
+  const S = costoPedido;
+  const H = costoMantenimiento;
+
+  if (D <= 0 || C <= 0 || Q <= 0 || S <= 0 || H <= 0) {
+    throw new Error('Datos insuficientes para calcular el CGI');
+  }
+
+  const CT = D * C + (D / Q) * S + (Q / 2) * H;
+  return Math.round(CT * 100) / 100; // Redondea a 2 decimales
+}
+
 module.exports = {
   calcularModeloLoteFijo,
   calcularModeloIntervaloFijo,
+  calcularCGI,
 };
