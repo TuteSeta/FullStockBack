@@ -111,7 +111,6 @@ router.post('/', async (req, res) => {
 
       if (
         modeloLF &&
-        stockAntes >= modeloLF.puntoPedido &&
         nuevoStock <= modeloLF.puntoPedido &&
         d.articulo.proveedorPredeterminado &&
         !yaTieneOC
