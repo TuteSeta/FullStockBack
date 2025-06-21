@@ -210,4 +210,98 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+router.get('/dashboard/ventas-diarias', async (req, res) => {
+  try {
+    const ventas = await prisma.ventas.findMany({
+      select: {
+        fechaVenta: true,
+        montoTotalVenta: true,
+      },
+    });
+
+    const diarias = {};
+
+    for (const v of ventas) {
+      const fecha = new Date(v.fechaVenta);
+      const key = fecha.toLocaleDateString("sv-SE"); // Usa fecha local
+      diarias[key] = (diarias[key] || 0) + Number(v.montoTotalVenta);
+    }
+
+    const data = Object.entries(diarias)
+      .map(([date, totalVentas]) => ({ date, totalVentas }))
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    res.json(data);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error al calcular ventas diarias" });
+  }
+});
+
+
+
+
+// POST /api/ventas/estadistica
+router.post('/estadistica', async (req, res) => {
+  try {
+    const hoy = new Date();
+    const hace7dias = new Date();
+    hace7dias.setDate(hoy.getDate() - 7);
+
+    const cantidadVentas = await prisma.ventas.count({
+      where: {
+        fechaVenta: {
+          gte: hace7dias,
+          lte: hoy,
+        },
+      },
+    });
+
+    const estadistica = await prisma.estadisticaVentas.create({
+      data: {
+        cantidadVentas,
+      },
+    });
+
+    res.status(201).json(estadistica);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Error al guardar estadística de ventas" });
+  }
+});
+
+// GET /api/ventas/historico
+router.get('/historico', async (req, res) => {
+  try {
+    const hoy = new Date();
+    const hace7dias = new Date();
+    hace7dias.setDate(hoy.getDate() - 7);
+
+    const ventasActuales = await prisma.ventas.count({
+      where: {
+        fechaVenta: {
+          gte: hace7dias,
+          lte: hoy,
+        },
+      },
+    });
+
+    const ultimo = await prisma.estadisticaVentas.findFirst({
+      orderBy: { fecha: 'desc' },
+    });
+
+    const delta = ultimo?.cantidadVentas
+      ? ((ventasActuales - ultimo.cantidadVentas) / ultimo.cantidadVentas) * 100
+      : 0;
+
+    res.status(200).json({
+      actual: ventasActuales,
+      delta,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Error al obtener histórico de ventas" });
+  }
+});
+
 module.exports = router;

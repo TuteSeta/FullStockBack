@@ -92,15 +92,15 @@ router.put('/:id', async (req, res) => {
     modeloInventarioLoteFijo.puntoPedido = puntoPedido;
     modeloInventarioLoteFijo.stockSeguridadLF = stockSeguridadLF;
     updateData.cgi = cgi; // guardar CGI en el articulo
-  } 
+  }
 
   //INTERVALO FIJO
   if (
     modeloInventarioIntervaloFijo &&
     (
-    modeloInventarioIntervaloFijo.stockSeguridadIF == null ||
-    modeloInventarioIntervaloFijo.inventarioMaximo == null ||
-    modeloInventarioIntervaloFijo.cantidadPedido == null
+      modeloInventarioIntervaloFijo.stockSeguridadIF == null ||
+      modeloInventarioIntervaloFijo.inventarioMaximo == null ||
+      modeloInventarioIntervaloFijo.cantidadPedido == null
     )
   ) {
     const proveedor = await prisma.proveedor.findUnique({
@@ -124,7 +124,7 @@ router.put('/:id', async (req, res) => {
       });
     }
 
-      // Obtener el stock actual del artículo
+    // Obtener el stock actual del artículo
     const articuloActual = await prisma.articulo.findUnique({
       where: { codArticulo: parseInt(id) },
       select: { cantArticulo: true }
@@ -213,6 +213,140 @@ router.put('/:id', async (req, res) => {
     res.status(500).json({ error: 'Error al actualizar el artículo' });
   }
 });
+router.get('/count', async (req, res) => {
+  try {
+    const total = await prisma.articulo.count();
+    res.status(200).json({ total });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al contar los artículos' });
+  }
+});
+
+router.post('/estadistica', async (req, res) => {
+  try {
+    const total = await prisma.articulo.count();
+    const nuevaEstadistica = await prisma.estadisticaArticulo.create({
+      data: {
+        totalArticulos: total,
+      },
+    });
+    res.status(201).json(nuevaEstadistica);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Error al guardar estadística" });
+  }
+});
+
+router.get('/historico', async (req, res) => {
+  try {
+    // 1. Contar artículos en tiempo real
+    const actual = await prisma.articulo.count();
+
+    // 2. Obtener el último registro guardado en estadística
+    const ultimoRegistro = await prisma.estadisticaArticulo.findFirst({
+      orderBy: { fecha: 'desc' },
+    });
+
+    const anterior = ultimoRegistro?.totalArticulos || 0;
+
+    res.status(200).json({ actual, anterior });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Error al obtener históricos" });
+  }
+});
+
+router.post('/stock/estadistica', async (req, res) => {
+  try {
+    const articulos = await prisma.articulo.findMany({
+      select: {
+        cantArticulo: true,
+        cantMaxArticulo: true,
+      },
+    });
+
+    const stockDisponible = articulos.reduce((acc, a) => acc + a.cantArticulo, 0);
+    const stockMaximo = articulos.reduce((acc, a) => acc + a.cantMaxArticulo, 0);
+
+    const estadistica = await prisma.estadisticaStock.create({
+      data: {
+        stockDisponible,
+        stockMaximo,
+      },
+    });
+
+    res.status(201).json(estadistica);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Error al guardar estadística de stock" });
+  }
+});
+
+// GET /api/articulos/stock/historico
+
+router.get('/stock/historico', async (req, res) => {
+  try {
+    const articulos = await prisma.articulo.findMany({
+      select: {
+        cantArticulo: true,
+      },
+    });
+
+    const stockActual = articulos.reduce((acc, a) => acc + a.cantArticulo, 0);
+
+    // Si ya no hay un máximo posible, podemos comparar contra un valor anterior
+    const ultimo = await prisma.estadisticaStock.findFirst({
+      orderBy: { fecha: 'desc' },
+    });
+
+    const stockAnterior = ultimo?.stockDisponible ?? 0;
+
+    res.status(200).json({
+      actual: stockActual,
+      delta: stockActual - stockAnterior,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Error al obtener histórico de stock" });
+  }
+});
+
+
+// GET /api/articulos/stock-bajo
+router.get('/stock-bajo', async (req, res) => {
+  try {
+    const articulos = await prisma.articulo.findMany({
+      include: {
+        modeloInventarioIntervaloFijo: true,
+        modeloInventarioLoteFijo: true,
+      },
+    });
+
+    const procesados = articulos
+      .map((a) => {
+        // Validar campos por si están indefinidos
+        const stockSeguridad =
+          (a.modeloInventarioIntervaloFijo?.stockSeguridadIF ?? 0) ||
+          (a.modeloInventarioLoteFijo?.stockSeguridadLF ?? 0);
+
+        return {
+          nombre: a.nombreArt,
+          cantidad: a.cantArticulo ?? 0,
+          total: a.cantMaxArticulo ?? 0,
+          stockSeguridad,
+        };
+      })
+      .filter(a => a !== null) // Por si algún mapeo da null
+      .sort((a, b) => a.cantidad - b.cantidad)
+      .slice(0, 4);
+
+    res.status(200).json(procesados);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Error al obtener artículos con stock bajo" });
+  }
+});
 
 
 // DELETE /api/articulos/:id
@@ -228,12 +362,12 @@ router.delete('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Artículo no encontrado' });
     }
     if (articulo.cantArticulo > 0) {
-      return res.status(400).json({ error: 'No se puede dar de baja: el articulo tiene unidades en stock'});
+      return res.status(400).json({ error: 'No se puede dar de baja: el articulo tiene unidades en stock' });
     }
-    
+
     // 2. Verificar si hay OC pendiente o enviada
     const ocPendiente = await prisma.ordenCompra.findFirst({
-      where:{
+      where: {
         detalleOrdenCompra: {
           some: { codArticulo: parseInt(id) }
         },
@@ -242,7 +376,7 @@ router.delete('/:id', async (req, res) => {
         }
       }
     });
-    
+
     if (ocPendiente) {
       return res.status(400).json({ error: 'No se puede dar de baja: el artículo tiene órdenes de compra pendientes o enviadas' });
     }
@@ -274,7 +408,7 @@ router.get('/', async (req, res) => {
         modeloInventarioIntervaloFijo: true,
         proveedorPredeterminado: true,
         articuloProveedores: {
-          include: { 
+          include: {
             proveedor: true, // Traer el proveedor
           }
         },
@@ -283,12 +417,12 @@ router.get('/', async (req, res) => {
             ordenCompra: {
               include: {
                 estadoOrdenCompra: true, // Traer el estado de la OC
+              }
             }
           }
         }
       }
-    }
-  });
+    });
 
     if (filtro === 'punto-pedido') {
       articulos = articulos.filter(a => {
@@ -476,7 +610,7 @@ router.post('/', async (req, res, next) => {
         }
       }
       createData.cgi = cgi;
-      
+
       createData.modeloInventarioIntervaloFijo = {
         create: {
           intervaloTiempo: Number(modeloInventarioIntervaloFijo.intervaloTiempo),

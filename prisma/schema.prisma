@@ -126,3 +126,21 @@ model DetalleOrdenCompra {
   codArticulo                   Int
   articulo                      Articulo @relation(fields: [codArticulo], references: [codArticulo])
 }
+
+model EstadisticaArticulo {
+  id              Int      @id @default(autoincrement())
+  fecha           DateTime @default(now())
+  totalArticulos  Int
+}
+
+model EstadisticaStock {
+  id              Int      @id @default(autoincrement())
+  fecha           DateTime @default(now())
+  stockDisponible Int
+  stockMaximo     Int
+}
+model EstadisticaVentas {
+  id               Int      @id @default(autoincrement())
+  fecha            DateTime @default(now())
+  cantidadVentas   Int
+}
