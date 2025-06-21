@@ -5,6 +5,7 @@ const { ventasSchema } = require('../schemas/ventasSchema');
 
 const prisma = new PrismaClient();
 
+//POST 
 router.post('/', async (req, res) => {
   const parseResult = ventasSchema.safeParse(req.body);
 
@@ -23,8 +24,17 @@ router.post('/', async (req, res) => {
         where: { codArticulo },
         include: {
           modeloInventarioLoteFijo: true,
+          proveedorPredeterminado: true,
           articuloProveedores: true,
-        },
+          detalleOrdenCompra: {
+            where: {
+              ordenCompra: {
+                codEstadoOrdenCompra: { in: [1, 2] }, // Pendiente o Enviada
+                fechaHoraBajaOrdenCompra: null
+              }
+            }
+          }
+        }
       });
 
       if (!articulo) {
@@ -35,7 +45,12 @@ router.post('/', async (req, res) => {
         return res.status(400).json({ error: `Stock insuficiente para el artículo ${articulo.nombreArt}` });
       }
 
-      const precioUnitario = articulo.costoCompra;
+      const proveedor = articulo.articuloProveedores.find(p => p.codProveedor === articulo.codProveedorPredeterminado);
+      if (!proveedor) {
+        return res.status(400).json({ error: `Artículo ${articulo.nombreArt} no tiene relación válida con su proveedor predeterminado` });
+      }
+
+      const precioUnitario = proveedor.costoUnitarioAP;
       const montoDetalleVenta = precioUnitario * cantidad;
 
       detalles.push({
@@ -44,6 +59,7 @@ router.post('/', async (req, res) => {
         precioUnitario,
         montoDetalleVenta,
         articulo,
+        proveedor
       });
 
       montoTotalVenta += montoDetalleVenta;
@@ -68,35 +84,20 @@ router.post('/', async (req, res) => {
         detalleVenta: {
           include: {
             articulo: {
-              select: {
-                codArticulo: true,
-                nombreArt: true,
-              },
+              select: { codArticulo: true, nombreArt: true },
             },
           },
         },
       },
     });
 
-    // Buscar o crear el estado "Pendiente" de forma insensible
-    let estadoPendiente = await prisma.estadoOrdenCompra.findFirst({
-      where: {
-        nombreEstadoOC: {
-          equals: "Pendiente",
-          mode: "insensitive",
-        },
-      },
+    const estadoPendiente = await prisma.estadoOrdenCompra.upsert({
+      where: { nombreEstadoOC: 'Pendiente' },
+      update: {},
+      create: { nombreEstadoOC: 'Pendiente' }
     });
 
-    if (!estadoPendiente) {
-      estadoPendiente = await prisma.estadoOrdenCompra.create({
-        data: {
-          nombreEstadoOC: "Pendiente",
-        },
-      });
-    }
-
-    // Actualizar stock y verificar modelo Lote Fijo
+    // Actualizar stock y verificar punto de pedido
     for (const d of detalles) {
       const nuevoStock = d.articulo.cantArticulo - d.cantidad;
 
@@ -106,38 +107,31 @@ router.post('/', async (req, res) => {
       });
 
       const modeloLF = d.articulo.modeloInventarioLoteFijo;
-      if (modeloLF && nuevoStock <= modeloLF.puntoPedido) {
-        const proveedor = d.articulo.articuloProveedores[0];
-        if (proveedor) {
-          const ordenesPendientes = await prisma.ordenCompra.findMany({
-            where: {
-              codProveedor: proveedor.codProveedor,
-              detalleOrdenCompra: {
-                some: { codArticulo: d.codArticulo },
-              },
-              estadoOrdenCompra: {
-                NOT: { nombreEstadoOC: 'Recibido' },
+
+      const yaTieneOC = d.articulo.detalleOrdenCompra.length > 0;
+
+      if (
+        modeloLF &&
+        nuevoStock <= modeloLF.puntoPedido &&
+        d.articulo.proveedorPredeterminado &&
+        !yaTieneOC
+      ) {
+        const lote = modeloLF.loteOptimo;
+
+        await prisma.ordenCompra.create({
+          data: {
+            codProveedor: d.proveedor.codProveedor,
+            codEstadoOrdenCompra: estadoPendiente.codEstadoOrdenCompra,
+            montoOrdenCompra: lote * d.proveedor.costoUnitarioAP,
+            detalleOrdenCompra: {
+              create: {
+                codArticulo: d.codArticulo,
+                cantidadDOC: lote,
+                montoDOC: lote * d.proveedor.costoUnitarioAP,
               },
             },
-          });
-
-          if (ordenesPendientes.length === 0) {
-            await prisma.ordenCompra.create({
-              data: {
-                montoOrdenCompra: d.articulo.costoCompra,
-                codProveedor: proveedor.codProveedor,
-                codEstadoOrdenCompra: estadoPendiente.codEstadoOrdenCompra, // ✅ dinámico
-                detalleOrdenCompra: {
-                  create: {
-                    montoDOC: d.articulo.costoCompra,
-                    codArticulo: d.codArticulo,
-                    cantidadDOC: modeloLF?.loteOptimo ?? d.cantidad, // ✅ extra
-                  },
-                },
-              },
-            });
-          }
-        }
+          },
+        });
       }
     }
 
@@ -148,6 +142,7 @@ router.post('/', async (req, res) => {
     res.status(500).json({ error: 'Error al registrar la venta' });
   }
 });
+
 
 router.get('/', async (req, res) => {
   try {
@@ -213,10 +208,8 @@ router.delete('/:id', async (req, res) => {
     console.error('Error al eliminar la venta:', error);
     res.status(500).json({ error: 'No se pudo eliminar la venta' });
   }
-
-
-
 });
+
 router.get('/dashboard/ventas-diarias', async (req, res) => {
   try {
     const ventas = await prisma.ventas.findMany({
@@ -230,15 +223,13 @@ router.get('/dashboard/ventas-diarias', async (req, res) => {
 
     for (const v of ventas) {
       const fecha = new Date(v.fechaVenta);
-      // 👇 Agrupar por día: formato "YYYY-MM-DD"
-      const key = fecha.toISOString().split('T')[0];
+      const key = fecha.toLocaleDateString("sv-SE"); // Usa fecha local
       diarias[key] = (diarias[key] || 0) + Number(v.montoTotalVenta);
     }
 
-    const data = Object.entries(diarias).map(([date, totalVentas]) => ({
-      date,
-      totalVentas,
-    }));
+    const data = Object.entries(diarias)
+      .map(([date, totalVentas]) => ({ date, totalVentas }))
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     res.json(data);
   } catch (err) {
@@ -246,6 +237,8 @@ router.get('/dashboard/ventas-diarias', async (req, res) => {
     res.status(500).json({ error: "Error al calcular ventas diarias" });
   }
 });
+
+
 
 
 // POST /api/ventas/estadistica
@@ -310,6 +303,5 @@ router.get('/historico', async (req, res) => {
     res.status(500).json({ error: "Error al obtener histórico de ventas" });
   }
 });
-
 
 module.exports = router;

@@ -2,12 +2,13 @@ const express = require('express');
 const router = express.Router();
 const prisma = require('../prismaClient');
 const { proveedorSchema } = require('../schemas/proveedorSchema');
+const { calcularModeloLoteFijo } = require('../utils/inventario');
+
 
 // PUT /api/proveedores/:codProveedor
 router.put('/:codProveedor', async (req, res) => {
   const codProveedor = parseInt(req.params.codProveedor);
   const { nombreProveedor, fechaHoraBajaProveedor } = req.body;
-
   try {
     const proveedorActualizado = await prisma.proveedor.update({
       where: { codProveedor },
@@ -16,6 +17,36 @@ router.put('/:codProveedor', async (req, res) => {
         fechaHoraBajaProveedor: fechaHoraBajaProveedor ? new Date(fechaHoraBajaProveedor) : null,
       },
     });
+
+    // 🔁 Buscar todos los artículos donde este proveedor es predeterminado
+    const articulosRelacionados = await prisma.articulo.findMany({
+      where: {
+        codProveedorPredeterminado: codProveedor,
+        fechaHoraBajaArticulo: null,
+      },
+      include: {
+        modeloInventarioLoteFijo: true,
+        articuloProveedores: {
+          where: { codProveedor }
+        }
+      }
+    });
+
+    for (const articulo of articulosRelacionados) {
+      const relacion = articulo.articuloProveedores[0];
+      if (!relacion) continue;
+
+      const nuevosValores = calcularModeloLoteFijo(articulo, relacion);
+
+      await prisma.modeloInventarioLoteFijo.upsert({
+        where: { codArticulo: articulo.codArticulo },
+        update: nuevosValores,
+        create: {
+          ...nuevosValores,
+          codArticulo: articulo.codArticulo
+        }
+      });
+    }
 
     res.status(200).json(proveedorActualizado);
   } catch (error) {
@@ -30,9 +61,10 @@ router.get('/', async (req, res) => {
 
   try {
     const proveedores = await prisma.proveedor.findMany({
-      where: soloActivos ? { fechaHoraBajaProveedor: null } : {},
+      where: {
+        fechaHoraBajaProveedor: null, // 👈 excluye dados de baja
+      },
     });
-
     res.status(200).json(proveedores);
   } catch (error) {
     console.error(error);
@@ -56,18 +88,42 @@ router.post('/', async (req, res, next) => {
   }
 });
 
+
 // DELETE /api/proveedores/:codProveedor
 router.delete('/:codProveedor', async (req, res) => {
   const codProveedor = parseInt(req.params.codProveedor);
 
   try {
+    // 1. Verificar si es proveedor predeterminado de algún artículo activo
+    const esPredeterminado = await prisma.articulo.findFirst({
+      where: {
+        codProveedorPredeterminado: codProveedor,
+        fechaHoraBajaArticulo: null
+      }
+    });
+    if (esPredeterminado) {
+      return res.status(400).json({ error: 'No se puede eliminar: el proveedor es predeterminado de algún artículo.' });
+    }
 
-    // 1. Eliminar relaciones con artículos
+    // 2. Verificar si tiene OC pendiente o enviada
+    const tieneOC = await prisma.ordenCompra.findFirst({
+      where: {
+        codProveedor: codProveedor,
+        estadoOrdenCompra: {
+          nombreEstadoOC: { in: ['Pendiente', 'Enviada'] }
+        }
+      }
+    });
+    if (tieneOC) {
+      return res.status(400).json({ error: 'No se puede eliminar: el proveedor tiene órdenes de compra pendientes o en curso.' });
+    }
+
+    // 3. Eliminar relaciones con artículos
     await prisma.articuloProveedor.deleteMany({
       where: { codProveedor }
     });
 
-    // Actualizar la fecha de baja en lugar de eliminar
+    // 4. Actualizar la fecha de baja en lugar de eliminar
     const proveedorBaja = await prisma.proveedor.update({
       where: { codProveedor },
       data: { fechaHoraBajaProveedor: new Date() },

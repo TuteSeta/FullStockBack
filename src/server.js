@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
+require('./jobs/intervaloFijoJob');
 
 const app = express();
 // Configurar CORS de forma flexible

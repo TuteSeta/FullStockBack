@@ -14,32 +14,38 @@ router.put('/:nroRenglonDOC', async (req, res) => {
     return res.status(400).json({ error: parseResult.error.errors });
   }
   const { nuevaCantidad } = parseResult.data;
-  
+
   try {
     const detalle = await prisma.detalleOrdenCompra.findUnique({
       where: { nroRenglonDOC: parseInt(nroRenglonDOC) },
+      include: {
+        ordenCompra: {
+          select: {
+            codProveedor: true,
+          }
+        }
+      }
     });
 
     if (!detalle) {
       return res.status(404).json({ error: 'Detalle no encontrado' });
     }
 
-    // Buscar el precio actual de la relación articuloProveedor
     const relacion = await prisma.articuloProveedor.findUnique({
       where: {
         codArticulo_codProveedor: {
           codArticulo: detalle.codArticulo,
-          codProveedor: detalle.codProveedor,
-        }
-      }
+          codProveedor: detalle.ordenCompra.codProveedor,
+        },
+      },
     });
-    if (!relacion) {
-      return res.status(400).json({ error: 'No existe relación proveedor-artículo' });
+
+    if (!relacion || typeof relacion.costoUnitarioAP !== "number") {
+      return res.status(400).json({ error: "No existe relación proveedor-artículo válida o el precio es inválido" });
     }
 
-    const nuevoMonto = relacion.precioUnitarioAP * nuevaCantidad;
-    
-    // Actualizar detalle
+    const nuevoMonto = relacion.costoUnitarioAP * nuevaCantidad;
+
     await prisma.detalleOrdenCompra.update({
       where: { nroRenglonDOC: parseInt(nroRenglonDOC) },
       data: {
@@ -59,7 +65,7 @@ router.put('/:nroRenglonDOC', async (req, res) => {
       d.nroRenglonDOC === detalle.nroRenglonDOC
         ? sum + nuevoMonto
         : sum + d.montoDOC
-    , 0);
+      , 0);
 
     await prisma.ordenCompra.update({
       where: { nroOrdenCompra: detalle.nroOrdenCompra },
