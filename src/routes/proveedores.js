@@ -88,18 +88,42 @@ router.post('/', async (req, res, next) => {
   }
 });
 
+
 // DELETE /api/proveedores/:codProveedor
 router.delete('/:codProveedor', async (req, res) => {
   const codProveedor = parseInt(req.params.codProveedor);
 
   try {
+    // 1. Verificar si es proveedor predeterminado de algún artículo activo
+    const esPredeterminado = await prisma.articulo.findFirst({
+      where: {
+        codProveedorPredeterminado: codProveedor,
+        fechaHoraBajaArticulo: null
+      }
+    });
+    if (esPredeterminado) {
+      return res.status(400).json({ error: 'No se puede eliminar: el proveedor es predeterminado de algún artículo.' });
+    }
 
-    // 1. Eliminar relaciones con artículos
+    // 2. Verificar si tiene OC pendiente o enviada
+    const tieneOC = await prisma.ordenCompra.findFirst({
+      where: {
+        codProveedor: codProveedor,
+        estadoOrdenCompra: {
+          nombreEstadoOC: { in: ['Pendiente', 'Enviada'] }
+        }
+      }
+    });
+    if (tieneOC) {
+      return res.status(400).json({ error: 'No se puede eliminar: el proveedor tiene órdenes de compra pendientes o en curso.' });
+    }
+
+    // 3. Eliminar relaciones con artículos
     await prisma.articuloProveedor.deleteMany({
       where: { codProveedor }
     });
 
-    // Actualizar la fecha de baja en lugar de eliminar
+    // 4. Actualizar la fecha de baja en lugar de eliminar
     const proveedorBaja = await prisma.proveedor.update({
       where: { codProveedor },
       data: { fechaHoraBajaProveedor: new Date() },

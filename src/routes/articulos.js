@@ -273,6 +273,11 @@ router.get('/', async (req, res) => {
         modeloInventarioLoteFijo: true,
         modeloInventarioIntervaloFijo: true,
         proveedorPredeterminado: true,
+        articuloProveedores: {
+          include: { 
+            proveedor: true, // Traer el proveedor
+          }
+        },
         detalleOrdenCompra: {
           include: {
             ordenCompra: {
@@ -319,6 +324,38 @@ router.get('/', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Error al obtener los artículos' });
+  }
+});
+
+// GET /api/articulos/:id
+router.get('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const articulo = await prisma.articulo.findUnique({
+      where: { codArticulo: parseInt(id) },
+      include: {
+        modeloInventarioLoteFijo: true,
+        modeloInventarioIntervaloFijo: true,
+        proveedorPredeterminado: true,
+        articuloProveedores: {
+          include: { proveedor: true }
+        },
+        detalleOrdenCompra: {
+          include: {
+            ordenCompra: {
+              include: { estadoOrdenCompra: true }
+            }
+          }
+        }
+      }
+    });
+    if (!articulo) {
+      return res.status(404).json({ error: 'Artículo no encontrado' });
+    }
+    res.status(200).json(articulo);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al obtener el artículo' });
   }
 });
 
