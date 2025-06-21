@@ -647,6 +647,155 @@ router.post('/', async (req, res, next) => {
     next(error);
   }
 });
+router.get('/count', async (req, res) => {
+  try {
+    const total = await prisma.articulo.count();
+    res.status(200).json({ total });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al contar los artículos' });
+  }
+});
+
+router.post('/estadistica', async (req, res) => {
+  try {
+    const total = await prisma.articulo.count();
+    const nuevaEstadistica = await prisma.estadisticaArticulo.create({
+      data: {
+        totalArticulos: total,
+      },
+    });
+    res.status(201).json(nuevaEstadistica);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Error al guardar estadística" });
+  }
+});
+
+router.get('/historico', async (req, res) => {
+  try {
+    // 1. Contar artículos en tiempo real
+    const actual = await prisma.articulo.count();
+
+    // 2. Obtener el último registro guardado en estadística
+    const ultimoRegistro = await prisma.estadisticaArticulo.findFirst({
+      orderBy: { fecha: 'desc' },
+    });
+
+    const anterior = ultimoRegistro?.totalArticulos || 0;
+
+    res.status(200).json({ actual, anterior });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Error al obtener históricos" });
+  }
+});
+
+router.post('/stock/estadistica', async (req, res) => {
+  try {
+    const articulos = await prisma.articulo.findMany({
+      select: {
+        cantArticulo: true,
+        cantMaxArticulo: true,
+      },
+    });
+
+    const stockDisponible = articulos.reduce((acc, a) => acc + a.cantArticulo, 0);
+    const stockMaximo = articulos.reduce((acc, a) => acc + a.cantMaxArticulo, 0);
+
+    const estadistica = await prisma.estadisticaStock.create({
+      data: {
+        stockDisponible,
+        stockMaximo,
+      },
+    });
+
+    res.status(201).json(estadistica);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Error al guardar estadística de stock" });
+  }
+});
+
+// GET /api/articulos/stock/historico
+router.get('/stock/historico', async (req, res) => {
+  try {
+    const articulos = await prisma.articulo.findMany({
+      select: {
+        cantArticulo: true,
+        cantMaxArticulo: true,
+      },
+    });
+
+    const stockActual = articulos.reduce((acc, a) => acc + a.cantArticulo, 0);
+    const stockMaxActual = articulos.reduce((acc, a) => acc + a.cantMaxArticulo, 0);
+
+    const ultimo = await prisma.estadisticaStock.findFirst({
+      orderBy: { fecha: 'desc' },
+    });
+
+    const porcentajeActual = (stockActual / stockMaxActual) * 100;
+    const porcentajeAnterior = ultimo
+      ? (ultimo.stockDisponible / ultimo.stockMaximo) * 100
+      : 0;
+
+    res.status(200).json({
+      actual: stockActual,
+      delta: porcentajeActual - porcentajeAnterior,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Error al obtener histórico de stock" });
+  }
+});
+
+// GET /api/articulos/stock-bajo
+router.get('/stock-bajo', async (req, res) => {
+  try {
+    const articulos = await prisma.articulo.findMany({
+      select: {
+        codArticulo: true,
+        nombreArt: true,
+        cantArticulo: true,
+        cantMaxArticulo: true,
+        modeloInventarioIntervaloFijo: {
+          select: {
+            stockSeguridadIF: true,
+          },
+        },
+        modeloInventarioLoteFijo: {
+          select: {
+            stockSeguridadLF: true,
+          },
+        },
+      },
+    });
+
+    const procesados = articulos
+      .map((a) => {
+        const stockSeguridad =
+          a.modeloInventarioIntervaloFijo?.stockSeguridadIF ??
+          a.modeloInventarioLoteFijo?.stockSeguridadLF ??
+          0;
+
+        return {
+          nombre: a.nombreArt,
+          cantidad: a.cantArticulo,
+          total: a.cantMaxArticulo,
+          stockSeguridad,
+        };
+      })
+      .sort((a, b) => a.cantidad - b.cantidad)
+      .slice(0, 4);
+
+    res.status(200).json(procesados);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Error al obtener artículos con stock bajo" });
+  }
+});
+
+
 
 
 
