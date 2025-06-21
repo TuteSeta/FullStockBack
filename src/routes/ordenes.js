@@ -3,13 +3,55 @@ const router = express.Router();
 const prisma = require('../prismaClient');
 const { ordenesSchema } = require('../schemas/ordenesSchema.js');
 
-// POST /api/ordenes
 router.post('/', async (req, res) => {
-
   try {
     const { codProveedor, detalleOC } = ordenesSchema.parse(req.body); // valida y convierte
 
-    // Calcular montos usando el precio de la relación articuloProveedor
+    // 🚫 Verificar si ya existe una OC activa (Pendiente o Enviada) para cada artículo del proveedor
+    for (const item of detalleOC) {
+      const ordenExistente = await prisma.detalleOrdenCompra.findFirst({
+        where: {
+          codArticulo: item.codArticulo,
+          ordenCompra: {
+            codProveedor,
+            estadoOrdenCompra: {
+              nombreEstadoOC: {
+                in: ['Pendiente', 'Enviada']
+              }
+            }
+          }
+        },
+        include: {
+          ordenCompra: {
+            include: { estadoOrdenCompra: true }
+          }
+        }
+      });
+
+      if (ordenExistente) {
+        return res.status(400).json({
+          error: `Ya existe una orden en estado "${ordenExistente.ordenCompra.estadoOrdenCompra.nombreEstadoOC}" para el artículo ${item.codArticulo} con el proveedor ${codProveedor}.`
+        });
+      }
+      const articulo = await prisma.articulo.findUnique({
+        where: { codArticulo: item.codArticulo },
+        include: { modeloInventarioLoteFijo: true },
+      });
+
+      if (articulo?.modeloInventarioLoteFijo) {
+        const puntoPedido = articulo.modeloInventarioLoteFijo.puntoPedido;
+        const stockActual = articulo.cantArticulo;
+        const totalPrevisto = stockActual + item.cantidadDOC;
+
+        if (totalPrevisto <= puntoPedido) {
+          return res.status(400).json({
+            error: `La cantidad total del artículo "${articulo.nombreArt}" (${totalPrevisto}) no supera el Punto de Pedido (${puntoPedido}).`,
+          });
+        }
+      }
+    }
+
+    // ✅ Calcular montos usando el precio de la relación articuloProveedor
     const detallesConMontos = await Promise.all(detalleOC.map(async (item) => {
       const relacion = await prisma.articuloProveedor.findUnique({
         where: {
@@ -33,11 +75,11 @@ router.post('/', async (req, res) => {
 
     const montoOrdenCompra = detallesConMontos.reduce((total, item) => total + Number(item.montoDOC), 0);
 
-    // Crear la orden de compra en estado Pendiente 
+    // 📝 Crear la orden de compra en estado Pendiente
     const nuevaOC = await prisma.ordenCompra.create({
       data: {
         montoOrdenCompra,
-        proveedor: { connect: { codProveedor } }, // 🔁 ← esto es lo correcto
+        proveedor: { connect: { codProveedor } },
         estadoOrdenCompra: { connect: { codEstadoOrdenCompra: 1 } },
         detalleOrdenCompra: {
           create: detallesConMontos
@@ -49,13 +91,13 @@ router.post('/', async (req, res) => {
         estadoOrdenCompra: true
       }
     });
+
     res.status(201).json(nuevaOC);
   } catch (error) {
     console.error('Error al crear la orden de compra:', error);
     res.status(500).json({ error: 'No se pudo crear la orden de compra' });
   }
 });
-
 // GET /api/ordenes
 
 router.get('/', async (req, res) => {

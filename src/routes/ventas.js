@@ -8,7 +8,6 @@ const prisma = new PrismaClient();
 //POST 
 router.post('/', async (req, res) => {
   const parseResult = ventasSchema.safeParse(req.body);
-
   if (!parseResult.success) {
     return res.status(400).json({ error: parseResult.error.errors });
   }
@@ -29,12 +28,12 @@ router.post('/', async (req, res) => {
           detalleOrdenCompra: {
             where: {
               ordenCompra: {
-                codEstadoOrdenCompra: { in: [1, 2] }, // Pendiente o Enviada
-                fechaHoraBajaOrdenCompra: null
-              }
-            }
-          }
-        }
+                codEstadoOrdenCompra: { in: [1, 2] },
+                fechaHoraBajaOrdenCompra: null,
+              },
+            },
+          },
+        },
       });
 
       if (!articulo) {
@@ -59,13 +58,12 @@ router.post('/', async (req, res) => {
         precioUnitario,
         montoDetalleVenta,
         articulo,
-        proveedor
+        proveedor,
       });
 
       montoTotalVenta += montoDetalleVenta;
     }
 
-    // Crear la venta
     const venta = await prisma.ventas.create({
       data: {
         fechaVenta: new Date(),
@@ -94,12 +92,14 @@ router.post('/', async (req, res) => {
     const estadoPendiente = await prisma.estadoOrdenCompra.upsert({
       where: { nombreEstadoOC: 'Pendiente' },
       update: {},
-      create: { nombreEstadoOC: 'Pendiente' }
+      create: { nombreEstadoOC: 'Pendiente' },
     });
 
-    // Actualizar stock y verificar punto de pedido
+    const mensajesOrdenes = [];
+
     for (const d of detalles) {
-      const nuevoStock = d.articulo.cantArticulo - d.cantidad;
+      const stockAntes = d.articulo.cantArticulo;
+      const nuevoStock = stockAntes - d.cantidad;
 
       await prisma.articulo.update({
         where: { codArticulo: d.codArticulo },
@@ -107,11 +107,11 @@ router.post('/', async (req, res) => {
       });
 
       const modeloLF = d.articulo.modeloInventarioLoteFijo;
-
       const yaTieneOC = d.articulo.detalleOrdenCompra.length > 0;
 
       if (
         modeloLF &&
+        stockAntes >= modeloLF.puntoPedido &&
         nuevoStock <= modeloLF.puntoPedido &&
         d.articulo.proveedorPredeterminado &&
         !yaTieneOC
@@ -132,10 +132,17 @@ router.post('/', async (req, res) => {
             },
           },
         });
+
+        mensajesOrdenes.push(
+          `Se creó una orden de compra para el artículo "${d.articulo.nombreArt}" (stock ${nuevoStock} <= punto de pedido ${modeloLF.puntoPedido}).`
+        );
       }
     }
-
-    res.status(201).json({ message: 'Venta registrada con éxito', venta });
+    res.status(201).json({
+      message: 'Venta registrada con éxito',
+      venta,
+      ordenesGeneradas: mensajesOrdenes, // <-- Esto es nuevo
+    });
 
   } catch (error) {
     console.error(error);
