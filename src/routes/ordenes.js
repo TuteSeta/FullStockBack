@@ -3,11 +3,12 @@ const router = express.Router();
 const prisma = require('../prismaClient');
 const { ordenesSchema } = require('../schemas/ordenesSchema.js');
 
+
+// POST /api/ordenes
 router.post('/', async (req, res) => {
   try {
-    const { codProveedor, detalleOC } = ordenesSchema.parse(req.body); // valida y convierte
+    const { codProveedor, detalleOC } = ordenesSchema.parse(req.body);
 
-    // 🚫 Verificar si ya existe una OC activa (Pendiente o Enviada) para cada artículo del proveedor
     for (const item of detalleOC) {
       const ordenExistente = await prisma.detalleOrdenCompra.findFirst({
         where: {
@@ -33,6 +34,7 @@ router.post('/', async (req, res) => {
           error: `Ya existe una orden en estado "${ordenExistente.ordenCompra.estadoOrdenCompra.nombreEstadoOC}" para el artículo ${item.codArticulo} con el proveedor ${codProveedor}.`
         });
       }
+
       const articulo = await prisma.articulo.findUnique({
         where: { codArticulo: item.codArticulo },
         include: { modeloInventarioLoteFijo: true },
@@ -51,7 +53,6 @@ router.post('/', async (req, res) => {
       }
     }
 
-    // ✅ Calcular montos usando el precio de la relación articuloProveedor
     const detallesConMontos = await Promise.all(detalleOC.map(async (item) => {
       const relacion = await prisma.articuloProveedor.findUnique({
         where: {
@@ -75,7 +76,6 @@ router.post('/', async (req, res) => {
 
     const montoOrdenCompra = detallesConMontos.reduce((total, item) => total + Number(item.montoDOC), 0);
 
-    // 📝 Crear la orden de compra en estado Pendiente
     const nuevaOC = await prisma.ordenCompra.create({
       data: {
         montoOrdenCompra,
@@ -86,7 +86,9 @@ router.post('/', async (req, res) => {
         }
       },
       include: {
-        detalleOrdenCompra: true,
+        detalleOrdenCompra: {
+          include: { articulo: true } // ✅ añadido para incluir nombreArt al crear
+        },
         proveedor: true,
         estadoOrdenCompra: true
       }
@@ -98,6 +100,26 @@ router.post('/', async (req, res) => {
     res.status(500).json({ error: 'No se pudo crear la orden de compra' });
   }
 });
+// GET /api/ordenes
+router.get('/', async (req, res) => {
+  try {
+    const ordenes = await prisma.ordenCompra.findMany({
+      include: {
+        detalleOrdenCompra: {
+          include: { articulo: true } // ✅ necesario para mostrar nombreArt
+        },
+        proveedor: true,
+        estadoOrdenCompra: true
+      }
+    });
+    res.status(200).json(ordenes);
+  } catch (error) {
+    console.error('Error al obtener las órdenes de compra:', error);
+    res.status(500).json({ error: 'No se pudieron obtener las órdenes de compra' });
+  }
+});
+module.exports = router;
+
 // GET /api/ordenes
 
 router.get('/', async (req, res) => {
@@ -117,6 +139,7 @@ router.get('/', async (req, res) => {
 });
 
 // GET /api/ordenes/:id
+
 router.get('/:id', async (req, res) => {
   const { id } = req.params;
 
@@ -124,7 +147,11 @@ router.get('/:id', async (req, res) => {
     const orden = await prisma.ordenCompra.findUnique({
       where: { nroOrdenCompra: parseInt(id) },
       include: {
-        detalleOrdenCompra: true,
+        detalleOrdenCompra: {
+          include: {
+            articulo: true
+          }
+        },
         proveedor: true,
         estadoOrdenCompra: true
       }
@@ -343,9 +370,16 @@ router.patch('/:id/finalizar', async (req, res) => {
     const orden = await prisma.ordenCompra.findUnique({
       where: { nroOrdenCompra: parseInt(id) },
       include: {
-        detalleOrdenCompra: true,
-        estadoOrdenCompra: true,
-      },
+        detalleOrdenCompra: {
+          include: {
+            articulo: {
+              select: { nombreArt: true }
+            }
+          }
+        },
+        proveedor: true,
+        estadoOrdenCompra: true
+      }
     });
 
     if (!orden) {
