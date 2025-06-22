@@ -74,7 +74,7 @@ El backend expone una API REST con las siguientes rutas principales:
 
 /api/venta-detalle
 
-🛠️ Tecnologías utilizadas
+## 🛠️ Tecnologías utilizadas
 
 Express.js
 
