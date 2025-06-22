@@ -34,8 +34,19 @@ router.get('/proveedor/:codProveedor', async (req, res) => {
     try {
         const relaciones = await prisma.articuloProveedor.findMany({
             where: { codProveedor },
-            include: { articulo: true },
+            include: {
+                articulo: {
+                    include: {
+                        proveedorPredeterminado: {
+                            select: {
+                                codProveedor: true
+                            }
+                        }
+                    }
+                }
+            }
         });
+
 
         res.status(200).json(relaciones);
     } catch (error) {
