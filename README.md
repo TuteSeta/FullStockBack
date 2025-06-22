@@ -30,6 +30,7 @@ Cloná el repositorio o descargalo:
 git clone https://github.com/TuteSeta/FullStockBack.git
 cd FullStockBack
 ```
+
 Instalá las dependencias:
 ```bash
 npm install
@@ -42,11 +43,36 @@ DATABASE_URL="postgresql://usuario:contraseña@localhost:5432/inventario"
 ```
 Reemplazá usuario y contraseña por los datos reales de tu entorno.
 
-Generá los estados iniciales requeridos para las órdenes de compra:
+## 🔧 Configuración de Prisma
+
+1. Generar el cliente Prisma:
+
+```bash
+npx prisma generate
+```
+2. Aplicar las migraciones y crear las tablas en la base de datos:
+```bash
+npx prisma migrate dev
+```
+Si no tenés migraciones aún, podés crear una así:
+```bash
+npx prisma migrate dev --name init
+```
+3. (Opcional) Ver el estado del esquema:
+```bash
+npx prisma studio
+```
+Esto abre una interfaz visual para explorar los datos.
+
+## 🧪 Seed inicial de estados
+
+Ejecutá el archivo de seed para cargar los estados de órdenes de compra requeridos:
 
 ```bash
 node src/seedEstadosOrden.js
 ```
+Este paso es obligatorio antes de comenzar a usar el sistema.
+
 
 ## ▶️ Ejecución del servidor
 Para iniciar el entorno de desarrollo:
