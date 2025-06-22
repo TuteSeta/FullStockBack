@@ -461,6 +461,46 @@ router.get('/', async (req, res) => {
   }
 });
 
+// GET /api/articulos/stock-mayor
+router.get('/stock-mayor', async (req, res) => {
+  try {
+    const articulos = await prisma.articulo.findMany({
+      where: {
+        fechaHoraBajaArticulo: null,
+      },
+      include: {
+        modeloInventarioLoteFijo: true,
+        modeloInventarioIntervaloFijo: true,
+      },
+      orderBy: {
+        cantArticulo: 'desc',
+      },
+      take: 4,
+    });
+
+    const topArticulos = articulos.map((a) => {
+      const stockSeguridad =
+        a.modeloInventarioIntervaloFijo?.stockSeguridadIF ??
+        a.modeloInventarioLoteFijo?.stockSeguridadLF ?? 0;
+
+      return {
+        nombre: a.nombreArt,
+        cantidad: a.cantArticulo,
+        total: a.cantMaxArticulo,
+        stockSeguridad,
+      };
+    });
+
+    res.json(topArticulos);
+  } catch (error) {
+    console.error("Error al obtener artículos con mayor stock:", error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+
+
+
 // GET /api/articulos/:id
 router.get('/:id', async (req, res) => {
   try {
@@ -748,53 +788,6 @@ router.get('/stock/historico', async (req, res) => {
     res.status(500).json({ error: "Error al obtener histórico de stock" });
   }
 });
-
-// GET /api/articulos/stock-bajo
-router.get('/stock-bajo', async (req, res) => {
-  try {
-    const articulos = await prisma.articulo.findMany({
-      select: {
-        codArticulo: true,
-        nombreArt: true,
-        cantArticulo: true,
-        cantMaxArticulo: true,
-        modeloInventarioIntervaloFijo: {
-          select: {
-            stockSeguridadIF: true,
-          },
-        },
-        modeloInventarioLoteFijo: {
-          select: {
-            stockSeguridadLF: true,
-          },
-        },
-      },
-    });
-
-    const procesados = articulos
-      .map((a) => {
-        const stockSeguridad =
-          a.modeloInventarioIntervaloFijo?.stockSeguridadIF ??
-          a.modeloInventarioLoteFijo?.stockSeguridadLF ??
-          0;
-
-        return {
-          nombre: a.nombreArt,
-          cantidad: a.cantArticulo,
-          total: a.cantMaxArticulo,
-          stockSeguridad,
-        };
-      })
-      .sort((a, b) => a.cantidad - b.cantidad)
-      .slice(0, 4);
-
-    res.status(200).json(procesados);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Error al obtener artículos con stock bajo" });
-  }
-});
-
 
 
 
