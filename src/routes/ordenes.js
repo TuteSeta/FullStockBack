@@ -430,6 +430,22 @@ router.patch('/:id/finalizar', async (req, res) => {
     res.status(500).json({ error: 'No se pudo finalizar la orden' });
   }
 });
+// GET /api/ordenes/finalizadas/count
+router.get('/finalizadas/count', async (req, res) => {
+  try {
+    const count = await prisma.ordenCompra.count({
+      where: {
+        estadoOrdenCompra: {
+          nombreEstadoOC: 'Finalizada',
+        },
+      },
+    });
+    res.status(200).json({ total: count });
+  } catch (error) {
+    console.error("Error al contar órdenes finalizadas:", error);
+    res.status(500).json({ error: 'Error al obtener conteo de órdenes finalizadas' });
+  }
+});
 
 
 
