@@ -40,7 +40,7 @@ router.put('/:id', async (req, res) => {
               codArticulo: true,
               cargoPedidoAP: true,
               demoraEntregaAP: true,
-              costoUnitarioAP: true, // 👈 nuevo campo para calcular CGI
+              costoUnitarioAP: true,
             },
           },
         },
@@ -87,14 +87,14 @@ router.put('/:id', async (req, res) => {
         return res.status(400).json({ error: 'Faltan datos en la relación proveedor-artículo' });
       }
     }
-
+    // Si no hay proveedor predeterminado, deja los valores en 0/null
     modeloInventarioLoteFijo.loteOptimo = loteOptimo;
     modeloInventarioLoteFijo.puntoPedido = puntoPedido;
     modeloInventarioLoteFijo.stockSeguridadLF = stockSeguridadLF;
     updateData.cgi = cgi; // guardar CGI en el articulo
   }
 
-  //INTERVALO FIJO
+  // INTERVALO FIJO
   if (
     modeloInventarioIntervaloFijo &&
     (
@@ -103,60 +103,68 @@ router.put('/:id', async (req, res) => {
       modeloInventarioIntervaloFijo.cantidadPedido == null
     )
   ) {
-    const proveedor = await prisma.proveedor.findUnique({
-      where: { codProveedor: data.codProveedorPredeterminado },
-      include: {
-        articuloProveedores: {
-          where: { codArticulo: parseInt(id) },
-          select: {
-            demoraEntregaAP: true,
-            cargoPedidoAP: true, // necesario para calcular CGI
-            costoUnitarioAP: true, // nuevo campo para calcular CGI
+    if (!data.codProveedorPredeterminado) {
+      // Si no hay proveedor predeterminado, igual permití el cambio de modelo, pero con valores en 0/null
+      modeloInventarioIntervaloFijo.stockSeguridadIF = 0;
+      modeloInventarioIntervaloFijo.inventarioMaximo = 0;
+      modeloInventarioIntervaloFijo.cantidadPedido = 0;
+      updateData.cgi = null;
+    } else {
+      const proveedor = await prisma.proveedor.findUnique({
+        where: { codProveedor: data.codProveedorPredeterminado },
+        include: {
+          articuloProveedores: {
+            where: { codArticulo: parseInt(id) },
+            select: {
+              demoraEntregaAP: true,
+              cargoPedidoAP: true,
+              costoUnitarioAP: true,
+            },
           },
         },
-      },
-    });
-
-    const relacion = proveedor?.articuloProveedores[0];
-    if (!relacion) {
-      return res.status(400).json({
-        error: 'No se puede calcular modelo IF: proveedor-artículo sin relación',
-      });
-    }
-
-    // Obtener el stock actual del artículo
-    const articuloActual = await prisma.articulo.findUnique({
-      where: { codArticulo: parseInt(id) },
-      select: { cantArticulo: true }
-    });
-
-    try {
-      const resultado = calcularModeloIntervaloFijo({
-        demanda: Number(data.demanda),
-        desviacionDemanda: Number(data.desviacionDemandaTArticulo),
-        nivelServicioDeseado: Number(data.nivelServicioDeseado),
-        intervaloTiempo: Number(modeloInventarioIntervaloFijo.intervaloTiempo),
-        demoraEntrega: Number(relacion.demoraEntregaAP),
-        inventarioActual: Number(articuloActual?.cantArticulo) || 0,
       });
 
-      modeloInventarioIntervaloFijo.stockSeguridadIF = resultado.stockSeguridadIF;
-      modeloInventarioIntervaloFijo.inventarioMaximo = resultado.inventarioMaximo;
-      modeloInventarioIntervaloFijo.cantidadPedido = resultado.cantidadPedido;
-
-      // Calcular CGI para intervalo fijo
-      if (relacion.cargoPedidoAP && relacion.costoUnitarioAP) {
-        updateData.cgi = calcularCGI({
-          demanda: Number(data.demanda),
-          costoUnidad: Number(relacion.costoUnitarioAP),
-          loteOptimo: resultado.cantidadPedido > 0 ? resultado.cantidadPedido : 1,
-          costoPedido: Number(relacion.cargoPedidoAP),
-          costoMantenimiento: Number(data.costoMantenimiento),
+      const relacion = proveedor?.articuloProveedores[0];
+      if (!relacion) {
+        return res.status(400).json({
+          error: 'No se puede calcular modelo IF: proveedor-artículo sin relación',
         });
       }
 
-    } catch (e) {
-      return res.status(400).json({ error: 'Error al calcular modelo IF: ' + e.message });
+      // Obtener el stock actual del artículo
+      const articuloActual = await prisma.articulo.findUnique({
+        where: { codArticulo: parseInt(id) },
+        select: { cantArticulo: true }
+      });
+
+      try {
+        const resultado = calcularModeloIntervaloFijo({
+          demanda: Number(data.demanda),
+          desviacionDemanda: Number(data.desviacionDemandaTArticulo),
+          nivelServicioDeseado: Number(data.nivelServicioDeseado),
+          intervaloTiempo: Number(modeloInventarioIntervaloFijo.intervaloTiempo),
+          demoraEntrega: Number(relacion.demoraEntregaAP),
+          inventarioActual: Number(articuloActual?.cantArticulo) || 0,
+        });
+
+        modeloInventarioIntervaloFijo.stockSeguridadIF = resultado.stockSeguridadIF;
+        modeloInventarioIntervaloFijo.inventarioMaximo = resultado.inventarioMaximo;
+        modeloInventarioIntervaloFijo.cantidadPedido = resultado.cantidadPedido;
+
+        // Calcular CGI para intervalo fijo
+        if (relacion.cargoPedidoAP && relacion.costoUnitarioAP) {
+          updateData.cgi = calcularCGI({
+            demanda: Number(data.demanda),
+            costoUnidad: Number(relacion.costoUnitarioAP),
+            loteOptimo: resultado.cantidadPedido > 0 ? resultado.cantidadPedido : 1,
+            costoPedido: Number(relacion.cargoPedidoAP),
+            costoMantenimiento: Number(data.costoMantenimiento),
+          });
+        }
+
+      } catch (e) {
+        return res.status(400).json({ error: 'Error al calcular modelo IF: ' + e.message });
+      }
     }
   }
 
@@ -181,7 +189,6 @@ router.put('/:id', async (req, res) => {
     updateData.modeloInventarioLoteFijo = { disconnect: true };
     updateData.modeloInventarioIntervaloFijo = { disconnect: true };
   }
-
 
   // Proveedor predeterminado
   if ('codProveedorPredeterminado' in data) {
@@ -211,75 +218,6 @@ router.put('/:id', async (req, res) => {
   } catch (error) {
     console.error('Error al actualizar artículo:', error);
     res.status(500).json({ error: 'Error al actualizar el artículo' });
-  }
-});
-router.get('/count', async (req, res) => {
-  try {
-    const total = await prisma.articulo.count();
-    res.status(200).json({ total });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Error al contar los artículos' });
-  }
-});
-
-router.post('/estadistica', async (req, res) => {
-  try {
-    const total = await prisma.articulo.count();
-    const nuevaEstadistica = await prisma.estadisticaArticulo.create({
-      data: {
-        totalArticulos: total,
-      },
-    });
-    res.status(201).json(nuevaEstadistica);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Error al guardar estadística" });
-  }
-});
-
-router.get('/historico', async (req, res) => {
-  try {
-    // 1. Contar artículos en tiempo real
-    const actual = await prisma.articulo.count();
-
-    // 2. Obtener el último registro guardado en estadística
-    const ultimoRegistro = await prisma.estadisticaArticulo.findFirst({
-      orderBy: { fecha: 'desc' },
-    });
-
-    const anterior = ultimoRegistro?.totalArticulos || 0;
-
-    res.status(200).json({ actual, anterior });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Error al obtener históricos" });
-  }
-});
-
-router.post('/stock/estadistica', async (req, res) => {
-  try {
-    const articulos = await prisma.articulo.findMany({
-      select: {
-        cantArticulo: true,
-        cantMaxArticulo: true,
-      },
-    });
-
-    const stockDisponible = articulos.reduce((acc, a) => acc + a.cantArticulo, 0);
-    const stockMaximo = articulos.reduce((acc, a) => acc + a.cantMaxArticulo, 0);
-
-    const estadistica = await prisma.estadisticaStock.create({
-      data: {
-        stockDisponible,
-        stockMaximo,
-      },
-    });
-
-    res.status(201).json(estadistica);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Error al guardar estadística de stock" });
   }
 });
 
