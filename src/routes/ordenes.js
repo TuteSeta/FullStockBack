@@ -14,7 +14,6 @@ router.post('/', async (req, res) => {
         where: {
           codArticulo: item.codArticulo,
           ordenCompra: {
-            codProveedor,
             estadoOrdenCompra: {
               nombreEstadoOC: {
                 in: ['Pendiente', 'Enviada']
@@ -29,9 +28,11 @@ router.post('/', async (req, res) => {
         }
       });
 
-      if (ordenExistente) {
-        return res.status(400).json({
-          error: `Ya existe una orden en estado "${ordenExistente.ordenCompra.estadoOrdenCompra.nombreEstadoOC}" para el artículo ${item.codArticulo} con el proveedor ${codProveedor}.`
+      if (ordenExistente && !req.body.confirmarConflicto) {
+        return res.status(200).json({
+          requiereConfirmacion: true,
+          mensaje: `Ya existe una orden en estado "${ordenExistente.ordenCompra.estadoOrdenCompra.nombreEstadoOC}" para el artículo ${item.codArticulo}. ¿Deseas continuar de todos modos?`,
+          articuloEnConflicto: item.codArticulo
         });
       }
 
